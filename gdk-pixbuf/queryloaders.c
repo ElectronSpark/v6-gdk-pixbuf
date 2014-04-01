@@ -216,7 +216,7 @@ write_loader_info (GString *contents, const char *path, GdkPixbufFormat *info)
         g_string_append_c (contents, '\n');
 }
 
-static void
+static gboolean
 query_module (GString *contents, const char *dir, const char *file)
 {
         char *path;
@@ -225,6 +225,7 @@ query_module (GString *contents, const char *dir, const char *file)
         void                    (*fill_vtable)   (GdkPixbufModule *module);
         gpointer fill_info_ptr;
         gpointer fill_vtable_ptr;
+        gboolean ret = TRUE;
 
         if (g_path_is_absolute (file))
                 path = g_strdup (file);
@@ -274,10 +275,13 @@ query_module (GString *contents, const char *dir, const char *file)
                                    g_module_error());
                 else
                         g_fprintf (stderr, "Cannot load loader %s\n", path);
+                ret = FALSE;
         }
         if (module)
                 g_module_close (module);
         g_free (path);
+
+        return ret;
 }
 
 #ifdef G_OS_WIN32
@@ -318,6 +322,7 @@ int main (int argc, char **argv)
         gint first_file = 1;
         GFile *pixbuf_libdir_file;
         gchar *pixbuf_libdir;
+        gboolean success = TRUE;
 
 #ifdef G_OS_WIN32
         gchar *libdir;
@@ -456,7 +461,9 @@ int main (int argc, char **argv)
                 }
                 modules = g_list_sort (modules, (GCompareFunc)strcmp);
                 for (l = modules; l != NULL; l = l->next)
-                        query_module (contents, moduledir, l->data);
+                        if (!query_module (contents, moduledir, l->data))
+                                success = FALSE;
+
                 g_list_free_full (modules, g_free);
                 g_free (moduledir);
 #else
@@ -472,7 +479,8 @@ int main (int argc, char **argv)
                         infilename = g_locale_to_utf8 (infilename,
                                                        -1, NULL, NULL, NULL);
 #endif
-                        query_module (contents, cwd, infilename);
+                        if (!query_module (contents, cwd, infilename))
+                                success = FALSE;
                 }
                 g_free (cwd);
         }
@@ -490,5 +498,8 @@ int main (int argc, char **argv)
 
         g_free (pixbuf_libdir);
 
-        return 0;
+        if (g_getenv ("GDK_PIXBUF_FATAL_LOADER"))
+                return success ? 0 : 1;
+        else
+                return 0;
 }
