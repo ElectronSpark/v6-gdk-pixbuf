@@ -900,7 +900,9 @@ _gdk_pixbuf_get_module (guchar *buffer, guint size,
         gboolean uncertain;
 
         mime_type = g_content_type_guess (NULL, buffer, size, &uncertain);
-        if ((uncertain || g_str_equal (mime_type, "text/plain") || g_str_equal (mime_type, "application/gzip")) && filename != NULL) {
+        if (filename != NULL && (uncertain || g_content_type_is_unknown (mime_type) ||
+                                 g_str_equal (mime_type, "text/plain") ||
+                                 g_str_equal (mime_type, "application/gzip"))) {
                 g_free (mime_type);
                 mime_type = g_content_type_guess (filename, buffer, size, NULL);
         }
@@ -915,6 +917,8 @@ _gdk_pixbuf_get_module (guchar *buffer, guint size,
                 mimes = info->mime_types;
                 for (j = 0; mimes[j] != NULL; j++) {
                         type = g_content_type_from_mime_type (mimes[j]);
+                        if (type == NULL)
+                                continue;
                         if (g_content_type_equals (type, mime_type)) {
                                 g_free (type);
                                 selected = module;
