@@ -383,6 +383,8 @@ if not meson.is_cross_build()
   subdir('thumbnailer')
 endif
 
+subdir('fuzzing')
+
 # Documentation
 build_docs = get_option('gtk_doc') or get_option('docs')
 subdir('docs')
