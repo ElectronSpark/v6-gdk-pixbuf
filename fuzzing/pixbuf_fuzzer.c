@@ -13,12 +13,23 @@ void write_file(const uint8_t *data, size_t size) {
 
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         GError *error = NULL;
-        GdkPixbufAnimation *result; 
+        GdkPixbuf *pixbuf;
+        uint8_t ch = data[0];
+        int width = ch & 0xF;
+        int height = (ch >> 4) & 0xF;
+
+        if ((height <= 0) || (width <= 0)) {
+                return 0;
+        }
 
         const gchar *in_file = (const gchar*) fname;
         write_file(data, size);
-        result = gdk_pixbuf_animation_new_from_file(in_file, &error);
+        
+        pixbuf = gdk_pixbuf_new_from_file_at_scale(in_file, width, height, TRUE, &error);
+        g_clear_object(&pixbuf);
         g_clear_error(&error);
-        g_object_unref(result);
+        pixbuf = gdk_pixbuf_new_from_file_at_scale(in_file, width, height, FALSE, &error);
+        g_clear_error(&error);
+        g_clear_object(&pixbuf);
         return 0;
 }
