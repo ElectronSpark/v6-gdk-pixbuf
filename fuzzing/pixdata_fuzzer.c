@@ -12,9 +12,11 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         GdkPixbuf *pixbuf;
         GError *error = NULL;
 
+        if (size < GDK_PIXDATA_HEADER_LENGTH) {
+                return 0;
+        }
         gdk_pixdata_deserialize(&pixdata, size, data, &error);
         if (error != NULL) {
-                g_clear_object(&pixbuf);
                 g_clear_error(&error);
                 return 0;
         }

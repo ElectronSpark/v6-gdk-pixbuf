@@ -1,8 +1,9 @@
 fuzz_targets = [
   'animation_fuzzer',
   'icc_fuzzer',
+  'pixbuf_file_fuzzer',
+  'pixbuf_scale_fuzzer',
   'pixdata_fuzzer',
-  'pixbuf_fuzzer',
   'serialize_fuzzer',
   'short_gif_fuzzer',
 ]

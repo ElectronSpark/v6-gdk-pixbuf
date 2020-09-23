@@ -12,7 +12,8 @@ variables:
   before_script:
     - mkdir -p _ccache
   script:
-    - meson ${BUILD_OPTS} _build .
+    #- meson ${BUILD_OPTS} _build .
+    - CC_FOR_BUILD=clang meson ${BUILD_OPTS} _build .
     - ninja -C _build
   artifacts:
     when: on_failure

@@ -1,24 +1,18 @@
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include <stddef.h>
 #include <stdint.h>
-
-static const char fname[] = "./input.txt";
-
-void write_file(const uint8_t *data, size_t size) {
-        FILE *f;
-        f = fopen(fname, "w");
-        fwrite(data, sizeof(uint8_t), size, f);
-        fclose(f);
-}
+#include "fuzzer_temp_file.h"
 
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         GError *error = NULL;
-        GdkPixbufAnimation *result; 
+        GdkPixbufAnimation *result;
 
-        const gchar *in_file = (const gchar*) fname;
-        write_file(data, size);
-        result = gdk_pixbuf_animation_new_from_file(in_file, &error);
+        char *tmpfile = fuzzer_get_tmpfile(data, size);
+        result = gdk_pixbuf_animation_new_from_file(tmpfile, &error);
         g_clear_error(&error);
-        g_object_unref(result);
+        if (result != NULL) {
+                g_object_unref(result);
+        }
+        fuzzer_release_tmpfile(tmpfile);
         return 0;
 }
