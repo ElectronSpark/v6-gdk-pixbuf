@@ -11,10 +11,11 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         char *tmpfile = fuzzer_get_tmpfile(data, size);
         GIOChannel* channel = g_io_channel_new_file (tmpfile, "r", NULL);
         g_io_channel_set_encoding (channel, NULL, NULL);
-        loader = gdk_pixbuf_loader_new_with_type ("gif", NULL);
-        if (loader == NULL) {
-                g_io_channel_unref (channel);
-                g_object_unref (loader);
+        loader = gdk_pixbuf_loader_new_with_type ("gif", &error);
+        if (error != NULL) {
+                g_clear_error(&error);
+                g_io_channel_unref(channel);
+                g_object_unref(loader);
                 fuzzer_release_tmpfile(tmpfile);
                 return 0;
         }
@@ -26,9 +27,10 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
                 gdk_pixbuf_loader_write(loader, buffer, bytes_read, &error);
         }
         g_free(buffer);
-        g_io_channel_unref (channel);
-        gdk_pixbuf_loader_close (loader, NULL);
-        g_object_unref (loader);
+        g_clear_error(&error);
+        g_io_channel_unref(channel);
+        gdk_pixbuf_loader_close(loader, NULL);
+        g_object_unref(loader);
         fuzzer_release_tmpfile(tmpfile);
         return 0;
 }
