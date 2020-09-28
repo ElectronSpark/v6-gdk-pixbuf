@@ -2,29 +2,34 @@
 #include <stdint.h>
 #include <string.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
-#include "fuzzer_temp_file.h"
 
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
-        const gchar *profile;
-        GdkPixbuf *pixbuf;
         GError *error = NULL;
-        char *tmpfile = fuzzer_get_tmpfile(data, size);
+        GdkPixbuf *pixbuf;
+        const gchar *profile;
 
         GdkPixbufLoader *loader = gdk_pixbuf_loader_new();
-        gdk_pixbuf_loader_write(loader, (const guchar*) tmpfile, size, &error);
+        gdk_pixbuf_loader_write(loader, data, size, &error);
         if (error != NULL) {
-                fuzzer_release_tmpfile(tmpfile);
-                g_clear_object(&loader);
+                g_object_unref(loader);
                 g_clear_error(&error);
                 return 0;
         }
         gdk_pixbuf_loader_close(loader, &error);
-
-        pixbuf = gdk_pixbuf_loader_get_pixbuf (loader);
-        profile = gdk_pixbuf_get_option (pixbuf, "icc-profile");
-
-        fuzzer_release_tmpfile(tmpfile);
-        g_clear_object(&loader);
+        if (error != NULL) {
+                g_object_unref(loader);
+                g_clear_error(&error);
+                return 0;
+        }
+        pixbuf = gdk_pixbuf_loader_get_pixbuf(loader);
+        if (pixbuf == NULL) {
+                g_object_unref(loader);
+                g_clear_error(&error);
+                return 0;
+        }
+        profile = gdk_pixbuf_get_option(pixbuf, "icc-profile");
+        profile = gdk_pixbuf_get_option(pixbuf, data);
+        g_object_unref(pixbuf);
         g_clear_error(&error);
         return 0;
 }

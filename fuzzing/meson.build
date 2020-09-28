@@ -3,6 +3,7 @@ fuzz_targets = [
   'icc_fuzzer',
   'pixbuf_file_fuzzer',
   'pixbuf_scale_fuzzer',
+  'pixbuf_cons_fuzzer',
   'short_gif_fuzzer',
   'stream_fuzzer'
 ]

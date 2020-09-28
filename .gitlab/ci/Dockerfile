@@ -4,7 +4,6 @@ RUN dnf -y install \
         ccache \
         gcc \
         gcc-c++ \
-        clang \
         gettext \
         gettext-devel \
         git \

@@ -4,20 +4,22 @@
 #include "fuzzer_temp_file.h"
 
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
-        GdkPixbuf *pixbuf;
-        GError *error = NULL;
-        uint8_t ch = data[0];
-        int width = ch & 0xF;
-        int height = (ch >> 4) & 0xF;
-        if ((height <= 0) || (width <= 0)) {
+        if (size <= 4) {
                 return 0;
         }
+        int scale;
+        GError *error = NULL;
+        GdkPixbuf *pixbuf;
+        memcpy(&scale, data, sizeof(scale));
+
         char *tmpfile = fuzzer_get_tmpfile(data, size);
-        pixbuf = gdk_pixbuf_new_from_file_at_scale(tmpfile, width, height, TRUE, &error);
+        pixbuf = gdk_pixbuf_new_from_file_at_scale(tmpfile, scale, scale, TRUE, &error);
         g_clear_error(&error);
-        pixbuf = gdk_pixbuf_new_from_file_at_scale(tmpfile, width, height, FALSE, &error);
+        pixbuf = gdk_pixbuf_new_from_file_at_scale(tmpfile, scale, scale, FALSE, &error);
         g_clear_error(&error);
-        g_clear_object(&pixbuf);
         fuzzer_release_tmpfile(tmpfile);
+        if (pixbuf != NULL) {
+                g_clear_object(&pixbuf);
+        }
         return 0;
 }

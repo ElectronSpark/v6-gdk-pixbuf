@@ -10,7 +10,6 @@ variables:
   image: registry.gitlab.gnome.org/gnome/gdk-pixbuf/master:v2
   stage: build
   before_script:
-    - apk add clang
     - mkdir -p _ccache
   script:
     #- meson ${BUILD_OPTS} _build .
