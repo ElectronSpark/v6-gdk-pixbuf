@@ -22,7 +22,7 @@ variables:
   before_script:
     - mkdir -p _ccache
   script:
-    - meson ${COMMON_MESON_FLAGS} ${LOADERS_FLAGS} ${BUILD_OPTS} _build .
+    - CC=clang meson ${COMMON_MESON_FLAGS} ${LOADERS_FLAGS} ${BUILD_OPTS} _build .
     - ninja -C _build
     - .gitlab/scripts/run-tests.sh _build
   artifacts:
