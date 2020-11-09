@@ -25,8 +25,14 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         g_clear_error(&error);
         return 0;
     }
+
+    char *buf = (char *) malloc(size + 1);
+    memcpy(buf, data, size);
+    buf[size] = '\0';
+    profile = gdk_pixbuf_get_option(pixbuf, buf);
     profile = gdk_pixbuf_get_option(pixbuf, "icc-profile");
-    profile = gdk_pixbuf_get_option(pixbuf, data);
+
+    free(buf);
     g_object_unref(pixbuf);
     g_clear_error(&error);
     return 0;
