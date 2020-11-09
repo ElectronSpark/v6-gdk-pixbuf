@@ -62,7 +62,6 @@
 
 
 #undef DUMP_IMAGE_DETAILS 
-#undef IO_GIFDEBUG
 
 #define MAXCOLORMAPSIZE  256
 
@@ -88,16 +87,6 @@ enum {
 	GIF_DONE
 };
 
-
-typedef struct _Gif89 Gif89;
-struct _Gif89
-{
-	int transparent;
-	int delay_time;
-	int input_flag;
-	int disposal;
-};
-
 typedef struct _GifContext GifContext;
 struct _GifContext
 {
@@ -109,18 +98,16 @@ struct _GifContext
 
         gint global_colormap_size;
         unsigned int global_bit_pixel;
-	unsigned int global_color_resolution;
-        unsigned int background_index;
 
-        gboolean frame_cmap_active;
         CMap frame_color_map;
         gint frame_colormap_size;
         unsigned int frame_bit_pixel;
 
-	unsigned int aspect_ratio;
 	GdkPixbufGifAnim *animation;
 	GdkPixbufFrame *frame;
-	Gif89 gif89;
+	int transparent_index;
+	int delay_time;
+	int disposal;
 
 	/* stuff per frame. */
 	int frame_len;
@@ -137,10 +124,7 @@ struct _GifContext
 	GdkPixbufModulePreparedFunc prepared_func;
 	GdkPixbufModuleUpdatedFunc updated_func;
 	gpointer user_data;
-        guchar *buf;
-	gsize ptr;
-	gsize size;
-	gsize amount_needed;
+	GByteArray *buf;
 
 	/* extension context */
 	guchar extension_label;
@@ -157,26 +141,13 @@ struct _GifContext
         GError **error;
 };
 
-
-
-#ifdef IO_GIFDEBUG
-static int count = 0;
-#endif
-
 /* Returns TRUE if read is OK,
  * FALSE if more memory is needed. */
 static gboolean
 gif_read (GifContext *context, guchar *buffer, size_t len)
 {
 	gboolean retval;
-#ifdef IO_GIFDEBUG
-	gint i;
-#endif
 	if (context->file) {
-#ifdef IO_GIFDEBUG
-		count += len;
-		g_print ("Fsize :%zi\tcount :%d\t", len, count);
-#endif
 		retval = (fread (buffer, 1, len, context->file) == len);
 
                 if (!retval && ferror (context->file)) {
@@ -187,38 +158,14 @@ gif_read (GifContext *context, guchar *buffer, size_t len)
                                      _("Failure reading GIF: %s"), 
                                      g_strerror (save_errno));
                 }
-                
-#ifdef IO_GIFDEBUG
-		if (len < 100) {
-			for (i = 0; i < len; i++)
-				g_print ("%d ", buffer[i]);
-		}
-		g_print ("\n");
-#endif
-                
+
 		return retval;
 	} else {
-#ifdef IO_GIFDEBUG
-/*  		g_print ("\tlooking for %d bytes.  size == %d, ptr == %d\n", len, context->size, context->ptr); */
-#endif
-		if ((context->size - context->ptr) >= len) {
-#ifdef IO_GIFDEBUG
-			count += len;
-#endif
-			memcpy (buffer, context->buf + context->ptr, len);
-			context->ptr += len;
-			context->amount_needed = 0;
-#ifdef IO_GIFDEBUG
-			g_print ("Psize :%zi\tcount :%d\t", len, count);
-			if (len < 100) {
-				for (i = 0; i < len; i++)
-					g_print ("%d ", buffer[i]);
-			}
-			g_print ("\n");
-#endif
+		if (context->buf->len >= len) {
+			memcpy (buffer, context->buf->data, len);
+			g_byte_array_remove_range (context->buf, 0, len);
 			return TRUE;
 		}
-		context->amount_needed = len - (context->size - context->ptr);
 	}
 	return FALSE;
 }
@@ -234,7 +181,6 @@ gif_set_get_colormap (GifContext *context)
 static void
 gif_set_get_colormap2 (GifContext *context)
 {
-	context->frame_colormap_size = 0;
 	context->state = GIF_GET_COLORMAP2;
 }
 
@@ -349,14 +295,13 @@ gif_get_extension (GifContext *context)
 				/* I only want to set the transparency if I haven't
 				 * created the frame yet.
                                  */
-				context->gif89.disposal = (context->block_buf[0] >> 2) & 0x7;
-				context->gif89.input_flag = (context->block_buf[0] >> 1) & 0x1;
-				context->gif89.delay_time = LM_to_uint (context->block_buf[1], context->block_buf[2]);
+				context->disposal = (context->block_buf[0] >> 2) & 0x7;
+				context->delay_time = LM_to_uint (context->block_buf[1], context->block_buf[2]);
 				
 				if ((context->block_buf[0] & 0x1) != 0) {
-					context->gif89.transparent = context->block_buf[3];
+					context->transparent_index = context->block_buf[3];
 				} else {
-					context->gif89.transparent = -1;
+					context->transparent_index = -1;
 				}
 			}
 
@@ -463,10 +408,10 @@ gif_get_lzw (GifContext *context)
                         context->frame->color_map = context->animation->color_map;
                 }
 
-                context->frame->transparent_index = context->gif89.transparent;
+                context->frame->transparent_index = context->transparent_index;
 
                 /* GIF delay is in hundredths, we want thousandths */
-                context->frame->delay_time = context->gif89.delay_time * 10;
+                context->frame->delay_time = context->delay_time * 10;
 
                 /* GIFs with delay time 0 are mostly broken, but they
                  * just want a default, "not that fast" delay.
@@ -483,7 +428,7 @@ gif_get_lzw (GifContext *context)
                 context->frame->elapsed = context->animation->total_time;
                 context->animation->total_time += context->frame->delay_time;                
                 
-                switch (context->gif89.disposal) {
+                switch (context->disposal) {
                 case 0:
                 case 1:
                         context->frame->action = GDK_PIXBUF_FRAME_RETAIN;
@@ -624,10 +569,7 @@ gif_init (GifContext *context)
          * last 3:   size of colormap
          */
 	context->global_bit_pixel = 2 << (buf[4] & 0x07);
-	context->global_color_resolution = (((buf[4] & 0x70) >> 3) + 1);
         context->has_global_cmap = (buf[4] & 0x80) != 0;
-	context->background_index = buf[5];
-	context->aspect_ratio = buf[6];
 
         context->animation->width = context->width;
         context->animation->height = context->height;
@@ -652,8 +594,8 @@ gif_init (GifContext *context)
 	}
 
 #ifdef DUMP_IMAGE_DETAILS
-        g_print (">Image width: %d height: %d global_cmap: %d background: %d\n",
-                 context->width, context->height, context->has_global_cmap, context->background_index);
+        g_print (">Image width: %d height: %d global_cmap: %d\n",
+                 context->width, context->height, context->has_global_cmap);
 #endif
         
 	return 0;
@@ -681,11 +623,11 @@ gif_get_frame_info (GifContext *context)
 	context->y_offset = LM_to_uint (buf[2], buf[3]);
 
 	if (context->animation->frames == NULL &&
-            context->gif89.disposal == 3) {
+            context->disposal == 3) {
                 /* First frame can't have "revert to previous" as its
                  * dispose mode. Silently use "retain" instead.
                  */
-                context->gif89.disposal = 0;
+                context->disposal = 0;
 	}
 
 	context->frame_interlace = BitSet (buf[8], INTERLACE);
@@ -693,9 +635,10 @@ gif_get_frame_info (GifContext *context)
 #ifdef DUMP_IMAGE_DETAILS
         g_print (">width: %d height: %d xoffset: %d yoffset: %d disposal: %d delay: %d transparent: %d interlace: %d\n",
                  context->frame_len, context->frame_height, context->x_offset, context->y_offset,
-                 context->gif89.disposal, context->gif89.delay_time, context->gif89.transparent, context->frame_interlace);
+                 context->disposal, context->delay_time, context->transparent_index, context->frame_interlace);
 #endif
         
+	context->frame_colormap_size = 0;
 	if (BitSet (buf[8], LOCALCOLORMAP)) {
 
 #ifdef DUMP_IMAGE_DETAILS
@@ -707,7 +650,6 @@ gif_get_frame_info (GifContext *context)
 		 * of an animated gif. */
 		/* if it does, we need to re-read in the colormap,
 		 * the gray_scale, and the bit_pixel */
-                context->frame_cmap_active = TRUE;
 		context->frame_bit_pixel = 1 << ((buf[8] & 0x07) + 1);
 		gif_set_get_colormap2 (context);
 		return 0;
@@ -856,13 +798,7 @@ new_context (GdkPixbufModuleSizeFunc size_func,
 	context->prepared_func = prepared_func;
 	context->updated_func = updated_func;
 	context->user_data = user_data;
-	context->buf = NULL;
-	context->amount_needed = 13;
-	context->buf = g_new (guchar, context->amount_needed);
-	context->gif89.transparent = -1;
-	context->gif89.delay_time = -1;
-	context->gif89.input_flag = -1;
-	context->gif89.disposal = -1;
+	context->buf = g_byte_array_new ();
         context->animation->loop = 1;
         context->in_loop_extension = FALSE;
 
@@ -943,7 +879,7 @@ gdk_pixbuf__gif_image_load (FILE *file, GError **error)
 out:
         g_object_unref (context->animation);
         
-        g_free (context->buf);
+	g_byte_array_unref (context->buf);
 	g_free (context);
  
 	return pixbuf;
@@ -962,9 +898,6 @@ gdk_pixbuf__gif_image_begin_load (GdkPixbufModuleSizeFunc size_func,
         g_assert (prepared_func != NULL);
         g_assert (updated_func != NULL);
 
-#ifdef IO_GIFDEBUG
-	count = 0;
-#endif
 	context = new_context (size_func, prepared_func, updated_func, user_data);
 
         if (context == NULL) {
@@ -1004,7 +937,7 @@ gdk_pixbuf__gif_image_stop_load (gpointer data, GError **error)
 
         g_object_unref (context->animation);
 
-  	g_free (context->buf);
+	g_byte_array_unref (context->buf);
 	g_free (context);
 
         return retval;
@@ -1019,59 +952,13 @@ gdk_pixbuf__gif_image_load_increment (gpointer data,
 	GifContext *context = (GifContext *) data;
 
         context->error = error;
-        
-	if (context->amount_needed == 0) {
-		/* we aren't looking for some bytes. */
-		/* we can use buf now, but we don't want to keep it around at all.
-		 * it will be gone by the end of the call. */
-		context->buf = (guchar*) buf; /* very dubious const cast */
-		context->ptr = 0;
-		context->size = size;
-	} else {
-		/* we need some bytes */
-		if (size < context->amount_needed) {
-			context->amount_needed -= size;
-			/* copy it over and return */
-			memcpy (context->buf + context->size, buf, size);
-			context->size += size;
-			return TRUE;
-		} else if (size == context->amount_needed) {
-			memcpy (context->buf + context->size, buf, size);
-			context->size += size;
-		} else {
-			context->buf = g_realloc (context->buf, context->size + size);
-			memcpy (context->buf + context->size, buf, size);
-			context->size += size;
-		}
-	}
+
+	g_byte_array_append (context->buf, buf, size);
 
 	retval = gif_main_loop (context);
-
-	if (retval == -2) {
-		if (context->buf == buf)
-                        context->buf = NULL;
+	if (retval == -2)
 		return FALSE;
-        }
-	if (retval == -1) {
-		/* we didn't have enough memory */
-		/* prepare for the next image_load_increment */
-		if (context->buf == buf) {
-			g_assert (context->size == size);
-			context->buf = g_new (guchar, context->amount_needed + (context->size - context->ptr));
-			memcpy (context->buf, buf + context->ptr, context->size - context->ptr);
-		} else {
-			/* copy the left overs to the begining of the buffer */
-			/* and realloc the memory */
-			memmove (context->buf, context->buf + context->ptr, context->size - context->ptr);
-			context->buf = g_realloc (context->buf, context->amount_needed + (context->size - context->ptr));
-		}
-		context->size = context->size - context->ptr;
-		context->ptr = 0;
-	} else {
-		/* we are prolly all done */
-		if (context->buf == buf)
-			context->buf = NULL;
-	}
+
 	return TRUE;
 }
 
@@ -1116,7 +1003,7 @@ gdk_pixbuf__gif_image_load_animation (FILE *file,
         if (context->error && *(context->error))
                 g_print ("%s\n", (*(context->error))->message);
         
-        g_free (context->buf);
+	g_byte_array_unref (context->buf);
 	g_free (context);
 	return animation;
 }
