@@ -26,8 +26,8 @@
 
 // Pure-C interface for creating and cleaning up temporary files.
 
-static char* fuzzer_get_tmpfile(const uint8_t* data, size_t size) {
-  char* filename_buffer = strdup("/tmp/generate_temporary_file.XXXXXX");
+static char *fuzzer_get_tmpfile(const uint8_t *data, size_t size) {
+  char *filename_buffer = strdup("/tmp/generate_temporary_file.XXXXXX");
   if (!filename_buffer) {
     perror("Failed to allocate file name buffer.");
     abort();
@@ -37,7 +37,7 @@ static char* fuzzer_get_tmpfile(const uint8_t* data, size_t size) {
     perror("Failed to make temporary file.");
     abort();
   }
-  FILE* file = fdopen(file_descriptor, "wb");
+  FILE *file = fdopen(file_descriptor, "wb");
   if (!file) {
     perror("Failed to open file descriptor.");
     close(file_descriptor);
@@ -54,7 +54,7 @@ static char* fuzzer_get_tmpfile(const uint8_t* data, size_t size) {
   return filename_buffer;
 }
 
-static void fuzzer_release_tmpfile(char* filename) {
+static void fuzzer_release_tmpfile(char *filename) {
   if (unlink(filename) != 0) {
     perror("WARNING: Failed to delete temporary file.");
   }
@@ -65,17 +65,17 @@ static void fuzzer_release_tmpfile(char* filename) {
 
 #ifdef __cplusplus
 class FuzzerTemporaryFile {
- public:
-  FuzzerTemporaryFile(const uint8_t* data, size_t size)
+public:
+  FuzzerTemporaryFile(const uint8_t *data, size_t size)
       : filename_(fuzzer_get_tmpfile(data, size)) {}
 
   ~FuzzerTemporaryFile() { fuzzer_release_tmpfile(filename_); }
 
-  const char* filename() const { return filename_; }
+  const char *filename() const { return filename_; }
 
- private:
-  char* filename_;
+private:
+  char *filename_;
 };
 #endif
 
-#endif  // FUZZER_TEMP_FILE_H_
+#endif // FUZZER_TEMP_FILE_H_

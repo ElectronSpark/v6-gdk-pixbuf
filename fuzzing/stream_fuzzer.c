@@ -23,6 +23,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     if (pixbuf != NULL) {
         g_object_unref(pixbuf);
     }
+
     g_clear_error(&error);
     g_object_unref(stream);
     g_object_unref(file);
