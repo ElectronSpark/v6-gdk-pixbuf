@@ -1,12 +1,12 @@
 #include <stdint.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
 
-#define WIDTH 10
-#define HEIGHT 20
-#define ROWSTRIDE (WIDTH * 4)
+const int width = 10;
+const int height = 20;
+const int rowstride = width * 4;
 
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
-    if (!(size >= WIDTH * HEIGHT * 4)) {
+    if (!(size >= width * height * 4)) {
         return 0;
     }
     const gchar *profile;
@@ -14,9 +14,9 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     GBytes *bytes;
     bytes = g_bytes_new_static(data, size);
     pixbuf = g_object_new(GDK_TYPE_PIXBUF,
-            "width", WIDTH,
-            "height", HEIGHT,
-            "rowstride", ROWSTRIDE,
+            "width", width,
+            "height", height,
+            "rowstride", rowstride,
             "bits-per-sample", 8,"n-channels", 3,
             "has-alpha", FALSE,
             "pixel-bytes", bytes,
