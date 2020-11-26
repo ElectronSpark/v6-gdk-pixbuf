@@ -6,13 +6,18 @@ const int height = 20;
 const int rowstride = width * 4;
 
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
-    if (!(size >= width * height * 4)) {
+    if (!(size >= (width * height * 4) + 1)) {
         return 0;
     }
     const gchar *profile;
     GdkPixbuf *pixbuf, *tmp;
     GBytes *bytes;
-    bytes = g_bytes_new_static(data, size);
+    unsigned int rot_amount = ((unsigned int) data[0]) % 4;
+    size_t new_size = size - 1;
+    uint8_t *new_data = (uint8_t *) calloc(new_size, sizeof(uint8_t));
+    memcpy(new_data, data + 1, new_size);
+
+    bytes = g_bytes_new(new_data, new_size);
     pixbuf = g_object_new(GDK_TYPE_PIXBUF,
             "width", width,
             "height", height,
@@ -22,6 +27,9 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
             "pixel-bytes", bytes,
             NULL);
     if (pixbuf == NULL) {
+        g_object_unref(pixbuf);
+        g_bytes_unref(bytes);
+        free(new_data);
         return 0;
     }
     gdk_pixbuf_scale(pixbuf, pixbuf,
@@ -30,9 +38,10 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
             gdk_pixbuf_get_height(pixbuf) / 4,
             0, 0, 0.5, 0.5,
             GDK_INTERP_NEAREST);
-    unsigned int rot_amount = ((unsigned int) data[0]) % 4;
     tmp = gdk_pixbuf_rotate_simple(pixbuf, rot_amount * 90);
+    g_object_unref(tmp);
     tmp = gdk_pixbuf_flip(pixbuf, TRUE);
+    g_object_unref(tmp);
     tmp = gdk_pixbuf_composite_color_simple(pixbuf,
             gdk_pixbuf_get_width(pixbuf) / 4, 
             gdk_pixbuf_get_height(pixbuf) / 4,
@@ -41,10 +50,11 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
             8,
             G_MAXUINT32,
             G_MAXUINT32/2);
+    g_object_unref(tmp);
 
-    char *buf = (char *) calloc(size + 1, sizeof(char));
-    memcpy(buf, data, size);
-    buf[size] = '\0';
+    char *buf = (char *) calloc(new_size + 1, sizeof(char));
+    memcpy(buf, new_data, new_size);
+    buf[new_size] = '\0';
 
     gdk_pixbuf_set_option(pixbuf, buf, buf);
     profile = gdk_pixbuf_get_option(pixbuf, buf);
@@ -59,8 +69,10 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
             NULL);
     tmp = gdk_pixbuf_flip(tmp, TRUE);
 
+    free(new_data);
     free(buf);
-    g_object_unref(pixbuf);
+    g_bytes_unref(bytes);
     g_object_unref(tmp);
+    g_object_unref(pixbuf);
     return 0;
 }
