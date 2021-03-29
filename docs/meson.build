@@ -12,7 +12,11 @@ pixdata_toml = configure_file(input: 'gdk-pixdata.toml.in', output: 'gdk-pixdata
 
 gidocgen = find_program('gi-docgen', required: get_option('gtk_doc'))
 
-docs_dir = gdk_pixbuf_datadir / 'doc/gdk-pixbuf/reference'
+htmldir = get_option('htmldir')
+if htmldir == ''
+  htmldir = gdk_pixbuf_datadir / 'doc/gdk-pixbuf/reference'
+endif
+docs_dir = htmldir
 
 expand_content_md_files = [
   'scaling-compositing.md',
