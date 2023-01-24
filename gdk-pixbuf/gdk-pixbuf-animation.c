@@ -606,7 +606,8 @@ gdk_pixbuf_animation_is_static_image (GdkPixbufAnimation *animation)
  * If an animation hasn't loaded any frames yet, this function will
  * return `NULL`.
  *
- * Return value: (transfer none): unanimated image representing the animation
+ * Return value: (transfer none) (nullable): unanimated image representing
+ * the animation
  */
 GdkPixbuf*
 gdk_pixbuf_animation_get_static_image (GdkPixbufAnimation *animation)
