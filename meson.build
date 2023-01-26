@@ -427,10 +427,10 @@ subdir('gdk-pixbuf')
 # i18n
 subdir('po')
 
+if get_option('tests')
+  subdir('tests')
+endif
 if not meson.is_cross_build()
-  if get_option('tests')
-    subdir('tests')
-  endif
   thumbnailer_opt = get_option('thumbnailer').disable_auto_if(glycin_dep.found())
   if not thumbnailer_opt.disabled()
     subdir('thumbnailer')
