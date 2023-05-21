@@ -149,6 +149,7 @@ struct ico_progressive_state {
 	guchar *HeaderBuf;	/* The buffer for the header (incl colormap) */
 	gint BytesInHeaderBuf;  /* The size of the allocated HeaderBuf */
 	gint HeaderDone;	/* The nr of bytes actually in HeaderBuf */
+	gint PixelBytesInHeader;/* The nr of pixel bytes in HeaderBuf */
 
 	gint LineWidth;		/* The width of a line in bytes */
 	guchar *LineBuf;	/* Buffer for 1 line */
@@ -479,6 +480,7 @@ static void DecodeHeader(guchar *Data, gint Bytes,
 		State->HeaderBuf = tmp;
  		State->BytesInHeaderBuf = State->HeaderSize;
  	}
+        State->PixelBytesInHeader = State->HeaderDone - State->HeaderSize;
  	if (Bytes < State->HeaderSize) {
  		return;
 	}
@@ -958,9 +960,21 @@ gdk_pixbuf__ico_image_load_increment(gpointer data,
 		else {
 			BytesToCopy =
 			    context->LineWidth - context->LineDone;
-			if (BytesToCopy > size)
-				BytesToCopy = size;
+			if (context->PixelBytesInHeader > 0) {
+                                int BytesToCopyFromHeaderBuffer = MIN(context->PixelBytesInHeader, BytesToCopy);
+				/* Should be non-NULL once the header is decoded, as below. */
+				g_assert (context->LineBuf != NULL);
 
+				memmove(context->LineBuf + context->LineDone,
+					context->HeaderBuf + context->HeaderDone - context->PixelBytesInHeader,
+					BytesToCopyFromHeaderBuffer);
+
+				context->LineDone += BytesToCopyFromHeaderBuffer;
+                                context->PixelBytesInHeader -= BytesToCopyFromHeaderBuffer;
+                                BytesToCopy -= BytesToCopyFromHeaderBuffer;
+			}
+                        if (BytesToCopy > size)
+                                BytesToCopy = size;
 			if (BytesToCopy > 0) {
 				/* Should be non-NULL once the header is decoded, as below. */
 				g_assert (context->LineBuf != NULL);
