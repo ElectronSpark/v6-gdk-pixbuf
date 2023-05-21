@@ -79,6 +79,8 @@ struct BitmapInfoHeader {
 	guint biClrImportant;
 };
 
+#define PNG_HEADER "\x89PNG\r\n\x1a\n"
+
 #ifdef DUMPBIH
 /*
 
@@ -362,7 +364,17 @@ static void DecodeHeader(guchar *Data, gint Bytes,
 		if (Bytes<State->HeaderSize)
 			return;
 
-		current_BIH = Data+current_entry->DIBoffset;
+		current_BIH = Data + current_entry->DIBoffset;
+		if (((current_BIH[3] << 24) + (current_BIH[2] << 16) + (current_BIH[1] << 8) + (current_BIH[0])) != sizeof(struct BitmapInfoHeader)) {
+			if (memcmp (current_BIH, PNG_HEADER, sizeof(PNG_HEADER)) == 0) {
+				/* PNG compressed icons have the BIH header replaced with PNG file data */
+				DEBUG(g_print("Skipping icon with score %d, as it is PNG compressed\n", current_entry->ImageScore));
+				/* FIXME: open icon with png loader */
+			} else {
+				DEBUG(g_print("Skipping icon with score %d, invalid header\n", current_entry->ImageScore));
+			}
+			continue;
+		}
 
 		/* A compressed icon, try the next one */
 		if ((current_BIH[16] != 0) || (current_BIH[17] != 0) || (current_BIH[18] != 0)
