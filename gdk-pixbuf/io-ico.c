@@ -221,7 +221,7 @@ static void DecodeHeader(guchar *Data, gint Bytes,
  */
 	struct ico_direntry_data *entry;
 	gint IconCount = 0; /* The number of icon-versions in the file */
-	guchar *BIH; /* The DIB for the used icon */
+	guchar *BIH = NULL; /* The DIB for the used icon */
  	guchar *Ptr;
  	gint I;
 	guint16 imgtype; /* 1 = icon, 2 = cursor */
@@ -332,10 +332,11 @@ static void DecodeHeader(guchar *Data, gint Bytes,
 	/* Now go through and find one we can parse */
 	entry = NULL;
 	for (l = State->entries; l != NULL; l = g_list_next (l)) {
-		entry = l->data;
+		struct ico_direntry_data *current_entry = l->data;
+		guchar *current_BIH;
 
 		/* Avoid invoking undefined behavior in the State->HeaderSize calculation below */
-		if (entry->DIBoffset > G_MAXINT - INFOHEADER_SIZE) {
+		if (current_entry->DIBoffset > G_MAXINT - INFOHEADER_SIZE) {
 			g_set_error (error,
 			             GDK_PIXBUF_ERROR,
 			             GDK_PIXBUF_ERROR_CORRUPT_IMAGE,
@@ -344,7 +345,7 @@ static void DecodeHeader(guchar *Data, gint Bytes,
 		}
 
 		/* We know how many bytes are in the "header" part. */
-		State->HeaderSize = entry->DIBoffset + INFOHEADER_SIZE;
+		State->HeaderSize = current_entry->DIBoffset + INFOHEADER_SIZE;
 
 		if (State->HeaderSize>State->BytesInHeaderBuf) {
 			guchar *tmp=g_try_realloc(State->HeaderBuf,State->HeaderSize);
@@ -361,24 +362,26 @@ static void DecodeHeader(guchar *Data, gint Bytes,
 		if (Bytes<State->HeaderSize)
 			return;
 
-		BIH = Data+entry->DIBoffset;
+		current_BIH = Data+current_entry->DIBoffset;
 
 		/* A compressed icon, try the next one */
-		if ((BIH[16] != 0) || (BIH[17] != 0) || (BIH[18] != 0)
-		    || (BIH[19] != 0)) {
-			DEBUG(g_print("Skipping icon with score %d, as it is compressed\n", entry->ImageScore));
+		if ((current_BIH[16] != 0) || (current_BIH[17] != 0) || (current_BIH[18] != 0)
+			|| (current_BIH[19] != 0)) {
+			DEBUG(g_print("Skipping icon with score %d, as it is compressed\n", current_entry->ImageScore));
 			continue;
 		}
 
-		DEBUG(g_print("Selecting icon with score %d\n", entry->ImageScore));
+		DEBUG(g_print("Selecting icon with score %d\n", current_entry->ImageScore));
 
 		/* If we made it to here then we have selected a BIH structure
 		 * in a format that we can parse */
+		entry = current_entry;
+		BIH = current_BIH;
 		break;
 	}
 
 	/* No valid icon found, because all are compressed? */
-	if (l == NULL) {
+	if (entry == NULL) {
 		g_set_error_literal (error,
 				     GDK_PIXBUF_ERROR,
 				     GDK_PIXBUF_ERROR_CORRUPT_IMAGE,
