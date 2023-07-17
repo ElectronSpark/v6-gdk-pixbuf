@@ -897,9 +897,11 @@ _gdk_pixbuf_get_module (guchar *buffer, guint size,
         gboolean uncertain;
 
         mime_type = g_content_type_guess (NULL, buffer, size, &uncertain);
-        if (filename != NULL && (uncertain || g_content_type_is_unknown (mime_type) ||
-                                 g_str_equal (mime_type, "text/plain") ||
-                                 g_str_equal (mime_type, "application/gzip"))) {
+        if (filename != NULL &&
+            (uncertain ||
+             g_content_type_is_unknown (mime_type) ||
+             g_str_equal (mime_type, "text/plain") ||
+             g_str_equal (mime_type, "application/gzip"))) {
                 g_free (mime_type);
                 mime_type = g_content_type_guess (filename, buffer, size, NULL);
         }
