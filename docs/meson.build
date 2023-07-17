@@ -1,99 +1,99 @@
-version_xml = configuration_data()
-version_xml.set('GDK_PIXBUF_VERSION', meson.project_version())
-configure_file(input: 'version.xml.in',
-               output: 'version.xml',
-               configuration: version_xml)
+gidocgen_dep = dependency('gi-docgen',
+  version: '>= 2021.1',
+  required: get_option('gtk_doc'),
+)
 
-if gobject_dep.type_name() == 'pkgconfig'
-  glib_prefix = gobject_dep.get_pkgconfig_variable('prefix')
-else
-  glib_prefix = get_option('prefix')
-endif
-glib_docpath = join_paths(glib_prefix, 'share', 'gtk-doc', 'html')
-docpath = join_paths(gdk_pixbuf_datadir, 'gtk-doc', 'html')
 
-private_headers = [
-  'pixops',
-  'gdk-pixbuf.h',
-  'gdk-pixbuf-alias.h',
-  'gdk-pixbuf-autocleanups.h',
-  'gdk-pixbuf-buffer-queue-private.h',
-  'gdk-pixbuf-marshal.h',
-  'gdk-pixbuf-private.h',
-  'gdk-pixbuf-scaled-anim.h',
-  'io-ani-animation.h',
-  'io-gdip-animation.h',
-  'io-gdip-native.h',
-  'io-gdip-propertytags.h',
-  'io-gdip-utils.h',
-  'io-gif-animation.h',
-  'xpm-color-table.h',
-  'test-images.h',
-  'lzw.h',
+toml_conf = configuration_data()
+toml_conf.set('VERSION', meson.project_version())
+pixbuf_toml = configure_file(input: 'gdk-pixbuf.toml.in', output: 'gdk-pixbuf.toml', configuration: toml_conf)
+pixdata_toml = configure_file(input: 'gdk-pixdata.toml.in', output: 'gdk-pixdata.toml', configuration: toml_conf)
+
+gidocgen = find_program('gi-docgen', required: get_option('gtk_doc'))
+
+docs_dir = gdk_pixbuf_datadir / 'doc'
+
+expand_content_md_files = [
+  'scaling-compositing.md',
 ]
 
+build_docs = get_option('gtk_doc')
 if get_option('docs')
-  warning('The "docs" build option is deprecated; please use "gtk_doc=true"')
+  warning('The docs option is deprecated; use -Dgtk_doc=true')
+  build_docs = true
 endif
 
-if get_option('gtk_doc') or get_option('docs')
-  gnome.gtkdoc('gdk-pixbuf',
-               main_xml: 'gdk-pixbuf.xml',
-               src_dir: [ gdk_pixbuf_inc ],
-               dependencies: gdkpixbuf_dep,
-               gobject_typesfile: 'gdk-pixbuf.types',
-               scan_args: [
-                 '--rebuild-types',
-                 '--deprecated-guards="GDK_PIXBUF_ENABLE_BROKEN|GDK_PIXBUF_DISABLE_DEPRECATED"',
-                 '--ignore-headers=' + ' '.join(private_headers),
-               ],
-               fixxref_args: [
-                 '--html-dir=@0@'.format(docpath),
-                 '--extra-dir=@0@'.format(join_paths(glib_docpath, 'glib')),
-                 '--extra-dir=@0@'.format(join_paths(glib_docpath, 'gobject')),
-                 '--extra-dir=@0@'.format(join_paths(glib_docpath, 'gio')),
-               ],
-               html_assets: [
-                 'composite.png',
-               ],
-               content_files: [
-                 'gdk-pixbuf-from-drawables.xml',
-                 'gdk-pixbuf-rendering.xml',
-                 'gdk-pixbuf.xml',
-                 'gdk-pixbuf-csource.xml',
-                 'gdk-pixbuf-query-loaders.xml',
-               ],
-               install: true)
+if build_docs
+  custom_target('gdk-pixbuf-doc',
+    input: [ pixbuf_toml, gdkpixbuf_gir[0] ],
+    output: 'gdk-pixbuf',
+    command: [
+      gidocgen,
+      'generate',
+      '--quiet',
+      '--add-include-path=@0@'.format(meson.current_build_dir() / '../gdk-pixbuf'),
+      '--config=@INPUT0@',
+      '--output-dir=@OUTPUT@',
+      '--no-namespace-dir',
+      '--content-dir=@0@'.format(meson.current_source_dir()),
+      '@INPUT1@',
+    ],
+    depend_files: [ expand_content_md_files ],
+    build_by_default: true,
+    install: true,
+    install_dir: docs_dir,
+  )
+
+  custom_target('gdk-pixdata-doc',
+    input: [ pixdata_toml, gdkpixdata_gir[0] ],
+    output: 'gdk-pixdata',
+    command: [
+      gidocgen,
+      'generate',
+      '--quiet',
+      '--add-include-path=@0@'.format(meson.current_build_dir() / '../gdk-pixbuf'),
+      '--config=@INPUT0@',
+      '--output-dir=@OUTPUT@',
+      '--no-namespace-dir',
+      '--content-dir=@0@'.format(meson.current_source_dir()),
+      '@INPUT1@',
+    ],
+    build_by_default: true,
+    install: true,
+    install_dir: docs_dir,
+  )
 endif
 
-xsltproc = find_program('xsltproc', required: false)
-if get_option('man') and xsltproc.found()
-  xlstproc_flags = [
-    '--nonet',
-    '--stringparam', 'man.output.quietly', '1',
-    '--stringparam', 'funcsynopsis.style', 'ansi',
-    '--stringparam', 'man.th.extra1.suppress', '1',
-    '--stringparam', 'man.authors.section.enabled', '0',
-    '--stringparam', 'man.copyright.section.enabled', '0',
+rst2man = find_program('rst2man', 'rst2man.py', required: false)
+if get_option('man') and not rst2man.found()
+  error('No rst2man found, but man pages were explicitly enabled')
+endif
+
+if get_option('man') and rst2man.found()
+  rst_files = [
+    [ 'gdk-pixbuf-csource', ],
+    [ 'gdk-pixbuf-query-loaders', ],
   ]
 
-  man_files = [
-    'gdk-pixbuf-csource',
-    'gdk-pixbuf-query-loaders',
+  rst2man_flags = [
+    '--syntax-highlight=none',
   ]
 
-  foreach m: man_files
-    custom_target(m + '-man',
-                  input: '@0@.xml'.format(m),
-                  output: '@0@.1'.format(m),
-                  command: [
-                    xsltproc,
-                    xlstproc_flags,
-                    '-o', '@OUTPUT@',
-                    'http://docbook.sourceforge.net/release/xsl/current/manpages/docbook.xsl',
-                    '@INPUT@',
-                  ],
-                  install: true,
-                  install_dir: join_paths(gdk_pixbuf_mandir, 'man1'))
+  foreach rst: rst_files
+    man_name = rst[0]
+    man_section = rst.get(1, '1')
+
+    custom_target('man-@0@'.format(man_name),
+      input: '@0@.rst'.format(man_name),
+      output: '@0@.@1@'.format(man_name, man_section),
+      command: [
+        rst2man,
+        rst2man_flags,
+        '@INPUT@',
+      ],
+      capture: true,
+      install: true,
+      install_dir: get_option('mandir') / 'man@0@'.format(man_section),
+    )
   endforeach
 endif

@@ -1,6 +1,10 @@
 # Resources contain PNG and BMP files, so we need these two loaders
 # enabled in order to build them
-if enabled_loaders.contains('png') and enabled_loaders.contains('bmp')
+# FIXME: On Windows glib-compile-resources will fail to execute
+# gdk-pixbuf-pixdata from build directory because it needs all DLL locations in
+# $PATH. Ideally we should use gnome.compile_resources() and let Meson deal with
+# this problem: See https://github.com/mesonbuild/meson/issues/8266.
+if enabled_loaders.contains('png') and host_system != 'windows'
   # Resources; we cannot use gnome.compile_resources() here, because we need to
   # override the environment in order to use the utilities we just built instead
   # of the system ones
@@ -9,6 +13,7 @@ if enabled_loaders.contains('png') and enabled_loaders.contains('bmp')
     output: 'resources.c',
     command: [
       gen_resources,
+      '--glib-compile-resources=@0@'.format(glib_compile_resources.full_path()),
       '--pixdata=@0@'.format(gdk_pixbuf_pixdata.full_path()),
       '--loaders=@0@'.format(loaders_cache.full_path()),
       '--sourcedir=@0@'.format(meson.current_source_dir()),
@@ -27,6 +32,7 @@ if enabled_loaders.contains('png') and enabled_loaders.contains('bmp')
     output: 'resources.h',
     command: [
       gen_resources,
+      '--glib-compile-resources=@0@'.format(glib_compile_resources.full_path()),
       '--pixdata=@0@'.format(gdk_pixbuf_pixdata.full_path()),
       '--loaders=@0@'.format(loaders_cache.full_path()),
       '--sourcedir=@0@'.format(meson.current_source_dir()),
@@ -65,7 +71,6 @@ installed_tests = {
   'pixbuf-construction': { 'suites': ['conform'], },
   'animation': {
     'suites': ['format'],
-    'skip': not enabled_loaders.contains('gif'),
   },
   'cve-2015-4491': {
     'suites': ['security'],
@@ -78,7 +83,6 @@ installed_tests = {
   'pixbuf-threads': { 'suites': ['io'], },
   'pixbuf-gif': {
     'suites': ['io'],
-    'skip': not enabled_loaders.contains('gif'),
   },
   'pixbuf-icc': {
     'suites': ['io'],
@@ -108,11 +112,9 @@ installed_tests = {
   'pixbuf-scale-two-step': { 'suites': ['ops'], },
   'pixbuf-short-gif-write': {
     'suites': ['format'],
-    'skip': not enabled_loaders.contains('gif'),
   },
   'pixbuf-gif-circular-table': {
     'suites': ['format'],
-    'skip': not enabled_loaders.contains('gif'),
   },
   'pixbuf-save': { 'suites': ['io'] },
   'pixbuf-readonly-to-mutable': { 'suites': ['conform'], },
@@ -150,6 +152,7 @@ test_data = [
   'aero.gif',
   'circular-table.gif',
   'issue70.jpg',
+  'issue205.jpg',
 ]
 
 installed_test_bindir = join_paths(gdk_pixbuf_libexecdir, 'installed-tests', meson.project_name())
@@ -161,7 +164,7 @@ if get_option('installed_tests')
 endif
 
 test_deps = gdk_pixbuf_deps + [ gdkpixbuf_dep, ]
-test_args = [ '-k', '--tap' ]
+test_args = [ '-k' ]
 test_env = environment()
 test_env.set('G_TEST_SRCDIR', meson.current_source_dir())
 test_env.set('G_TEST_BUILDDIR', meson.current_build_dir())
@@ -175,6 +178,9 @@ foreach test_name, test_data: installed_tests
     test_sources += [ resources_c, resources_h ]
   endif
   skip_if_true = test_data.get('skip', false)
+  if skip_if_true
+    continue
+  endif
 
   custom_target(test_name + '.test',
     output: test_name + '.test',
@@ -188,30 +194,27 @@ foreach test_name, test_data: installed_tests
     install_dir: installed_test_datadir,
   )
 
-  if not skip_if_true
-    test_bin = executable(test_name, test_sources,
-      dependencies: test_deps,
-      include_directories: [ root_inc, gdk_pixbuf_inc, ],
-      c_args: common_cflags,
-      install: get_option('installed_tests'),
-      install_dir: installed_test_bindir,
-    )
+  test_bin = executable(test_name, test_sources,
+    dependencies: test_deps,
+    include_directories: [ root_inc, gdk_pixbuf_inc, ],
+    c_args: common_cflags,
+    install: get_option('installed_tests'),
+    install_dir: installed_test_bindir,
+  )
 
-    # Two particularly slow tests
-    if test_suites.contains('slow')
-      timeout = 300
-    else
-      timeout = 30
-    endif
-
-    test(test_name, test_bin,
-      suite: test_suites,
-      args: test_args,
-      env: test_env,
-      timeout: timeout,
-      protocol: 'tap',
-    )
+  # Two particularly slow tests
+  if test_suites.contains('slow')
+    timeout = 300
+  else
+    timeout = 30
   endif
+
+  test(test_name, test_bin,
+    suite: test_suites,
+    args: test_args,
+    env: test_env,
+    timeout: timeout,
+  )
 endforeach
 
 executable('pixbuf-read',

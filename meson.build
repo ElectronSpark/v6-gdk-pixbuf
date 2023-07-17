@@ -1,12 +1,13 @@
 project('gdk-pixbuf', 'c',
-        version: '2.41.0',
-        license: 'LGPLv2.1+',
-        default_options: [
-          'buildtype=debugoptimized',
-          'warning_level=1',
-          'c_std=c99',
-        ],
-        meson_version: '>= 0.48.0')
+  version: '2.42.11',
+  license: 'LGPL-2.1-or-later',
+  default_options: [
+    'buildtype=debugoptimized',
+    'warning_level=1',
+    'c_std=gnu99',
+  ],
+  meson_version: '>= 0.55.3',
+)
 
 add_project_arguments([ '-D_POSIX_C_SOURCE=200809L', '-D_DEFAULT_SOURCE', '-D_XOPEN_SOURCE=700' ], language: 'c')
 
@@ -93,7 +94,8 @@ if cc.has_function('lrint', dependencies: mathlib_dep)
   gdk_pixbuf_conf.set('HAVE_LRINT', 1)
 endif
 
-if cc.has_function('bind_textdomain_codeset', prefix: '#include <libintl.h>')
+intl_dep = cc.find_library('intl', required: false)
+if cc.has_function('bind_textdomain_codeset', prefix: '#include <libintl.h>', dependencies: intl_dep)
   gdk_pixbuf_conf.set('HAVE_BIND_TEXTDOMAIN_CODESET', 1)
 endif
 
@@ -189,15 +191,18 @@ if host_machine.system() == 'darwin'
   gdk_pixbuf_conf.set('OS_DARWIN', 1)
 endif
 
-# On non-Windows/macOS systems we always required shared-mime-info and GIO
+# On non-Windows/macOS/android systems we always required shared-mime-info and GIO
 # shared_mime_dep = []
 shared_mime_dep = []
-if get_option('gio_sniffing') and host_system != 'windows' and host_system != 'darwin'
+use_gio_mime = false
+if get_option('gio_sniffing') and host_system not in ['windows', 'darwin', 'android']
   shared_mime_dep += dependency('shared-mime-info')
   gdk_pixbuf_conf.set('GDK_PIXBUF_USE_GIO_MIME', 1)
+  use_gio_mime = true
 endif
 
 # Check if medialib is available
+use_medialib = false
 medialib_dep = cc.find_library('mlib', required: false)
 if medialib_dep.found()
   if cc.has_function('mlib_ImageSetStruct', dependencies: medialib_dep)
@@ -206,86 +211,67 @@ if medialib_dep.found()
     if cc.has_function('mlib_VideoColorRGBint_to_BGRAint', dependencies: medialib_dep)
       gdk_pixbuf_conf.set('USE_MEDIALIB25', 1)
     endif
+
+    use_medialib = true
   else
     medialib_dep = []
   endif
 endif
 
-gdk_pixbuf_deps = [ mathlib_dep, glib_dep, gobject_dep, gmodule_dep, gio_dep,
-                    shared_mime_dep, medialib_dep ]
+gdk_pixbuf_deps = [
+  mathlib_dep,
+  glib_dep,
+  gobject_dep,
+  gmodule_dep,
+  gio_dep,
+  shared_mime_dep,
+  medialib_dep,
+  intl_dep,
+]
 
 # Check if we can build shared modules
 if gmodule_dep.type_name() == 'pkgconfig'
-  build_modules = gmodule_dep.get_pkgconfig_variable('gmodule_supported') == 'true'
+  build_modules = gmodule_dep.get_variable(pkgconfig: 'gmodule_supported') == 'true'
 else
   build_modules = subproject('glib').get_variable('g_module_impl') != '0'
 endif
 gdk_pixbuf_conf.set('USE_GMODULE', build_modules)
 
 # Check which loaders should be built into gdk-pixbuf
-builtin_loaders = get_option('builtin_loaders').split(',')
+builtin_loaders = get_option('builtin_loaders')
 
 # If 'all' is specified for builtin_loaders, build all
 # buildable loaders into gdk-pixbuf
 builtin_all_loaders = false
-if builtin_loaders == [ 'all' ]
+if builtin_loaders.contains('all')
   builtin_all_loaders = true
+elif builtin_loaders.contains('none')
+  builtin_loaders = []
 endif
 
+is_msvc_like = cc.get_argument_syntax() == 'msvc'
 # Loader dependencies
 enabled_loaders = []
 loaders_deps = []
 
-if get_option('png')
-  # We have a vast selection of libpng versions to choose from
-  foreach png: [ 'libpng16', 'libpng15', 'libpng14', 'libpng13', 'libpng12', 'libpng10' ]
-    if not enabled_loaders.contains('png')
-      png_dep = dependency(png, required: false)
-      if png_dep.found()
-        enabled_loaders += 'png'
-        loaders_deps += png_dep
-      endif
-    endif
-  endforeach
+png_opt = get_option('png')
+if not png_opt.disabled()
+  png_dep = dependency(is_msvc_like ? 'png' : 'libpng', required: false)
 
-  if not enabled_loaders.contains('png')
-    if cc.get_id() == 'msvc' and cc.has_header('png.h')
-      # MSVC: First look for the DLL + import .lib build of libpng,
-      # which is normally libpngxx.lib, when libpng's pkg-config can't
-      # be found, which is quite normal on MSVC.
-      foreach png: [ 'libpng16', 'libpng15', 'libpng14', 'libpng12', 'libpng13', 'libpng10' ]
-        if not enabled_loaders.contains('png')
-          png_dep = cc.find_library(png, required: false)
-          if png_dep.found()
-            enabled_loaders += 'png'
-            loaders_deps += png_dep
-          endif
-        endif
-      endforeach
+  # Finally, look for the dependency in a fallback subproject if allowed by
+  # the --wrap-mode option. We don't directly call subproject() here because
+  # that will bypass --wrap-mode and cause issues for distro packagers.
+  # See: https://mesonbuild.com/Reference-manual.html#dependency
+  if not png_dep.found()
+    png_dep = dependency('libpng',
+      fallback: ['libpng', 'libpng_dep'],
+      required: png_opt,
+    )
+  endif
 
-      # If we still can't find libpng, try looking for the static libpng.lib,
-      # which means we need to ensure we have the static zlib .lib as well
-      if not enabled_loaders.contains('png')
-        png_dep = cc.find_library('libpng', required: false)
-        zlib_dep = cc.find_library('zlib', required: false)
-        if png_dep.found() and zlib_dep.found()
-          enabled_loaders += 'png'
-          loaders_deps += [ png_dep, zlib_dep ]
-        endif
-      endif
-    endif
-
-    # Finally, look for the dependency in a fallback subproject if allowed by
-    # the --wrap-mode option. We don't directly call subproject() here because
-    # that will bypass --wrap-mode and cause issues for distro packagers.
-    # See: https://mesonbuild.com/Reference-manual.html#dependency
-    if not png_dep.found()
-      png_dep = dependency('', required: false, fallback: ['libpng', 'png_dep'])
-      if png_dep.found()
-        enabled_loaders += 'png'
-        loaders_deps += png_dep
-      endif
-    endif
+  if png_dep.found()
+    enabled_loaders += 'png'
+    loaders_deps += png_dep
   endif
 endif
 
@@ -306,41 +292,43 @@ if native_windows_loaders
 endif
 
 # Don't check and build the jpeg loader if native_windows_loaders is true
-if get_option('jpeg') and not native_windows_loaders
-  if cc.has_header('jpeglib.h')
-    jpeg_dep = cc.find_library('jpeg', required: false)
-    if cc.get_id() == 'msvc' and not jpeg_dep.found()
-      # The IJG JPEG library builds the .lib file as libjpeg.lib in its MSVC build system,
-      # so look for it as well when jpeg.lib cannot be found
-      jpeg_dep = cc.find_library('libjpeg', required: false)
-    endif
-    if jpeg_dep.found() and cc.has_function('jpeg_destroy_decompress', dependencies: jpeg_dep)
-      enabled_loaders += 'jpeg'
-      loaders_deps += jpeg_dep
+jpeg_opt = get_option('jpeg')
+if not jpeg_opt.disabled() and not native_windows_loaders
+  jpeg_dep = dependency(is_msvc_like ? 'jpeg' : 'libjpeg', required: false)
 
-      gdk_pixbuf_conf.set('HAVE_PROGRESSIVE_JPEG',
-                          cc.has_function('jpeg_simple_progression',
-                                          dependencies: jpeg_dep))
+  # Finally, look for the dependency in a fallback
+  if not jpeg_dep.found()
+    jpeg_dep = dependency('libjpeg',
+      fallback: ['libjpeg-turbo', 'jpeg_dep'],
+      required: jpeg_opt,
+    )
+  endif
+
+  if jpeg_dep.found()
+    enabled_loaders += 'jpeg'
+    loaders_deps += jpeg_dep
+
+    if jpeg_dep.type_name() == 'internal'
+      has_destroy_decompress = true
+      has_simple_progression = true
+    else
+      has_destroy_decompress = cc.has_function('jpeg_destroy_decompress', dependencies: jpeg_dep)
+      has_simple_progression = cc.has_function('jpeg_simple_progression', dependencies: jpeg_dep)
+    endif
+
+    if has_destroy_decompress and has_simple_progression
+      gdk_pixbuf_conf.set('HAVE_PROGRESSIVE_JPEG', has_simple_progression)
     endif
   endif
 endif
 
 # Don't check and build the tiff loader if native_windows_loaders is true
-if get_option('tiff') and not native_windows_loaders
-  tiff_dep = dependency('libtiff-4', required: false)
-  if not tiff_dep.found()
-    # Fallback when no pkg-config file is found for libtiff on MSVC, which is quite normal
-    if cc.get_id() == 'msvc' and cc.has_header('tiff.h')
-      # First look for the DLL builds of libtiff, then the static builds
-      tiff_dep = cc.find_library('libtiff_i', required: false)
+tiff_opt = get_option('tiff')
+if not tiff_opt.disabled() and not native_windows_loaders
+  # We currently don't have a fallback subproject, but this handles error
+  # reporting if tiff_opt is enabled.
+  tiff_dep = dependency(is_msvc_like ? 'tiff' : 'libtiff-4', required: tiff_opt)
 
-      if not tiff_dep.found()
-        # For the static lib, zlib and libjpeg .lib's have been looked for first, and
-        # they are optional for libtiff
-        tiff_dep = cc.find_library('libtiff', required: false)
-      endif
-    endif
-  endif
   if tiff_dep.found()
     enabled_loaders += 'tiff'
     loaders_deps += tiff_dep
@@ -350,7 +338,7 @@ endif
 # Determine whether we enable application bundle relocation support, and we use
 # this always on Windows
 if host_system == 'windows'
-  relocatable = true
+  relocatable = (get_option('default_library') != 'static')
 else
   relocatable = get_option('relocatable')
 endif
@@ -371,6 +359,9 @@ gen_resources = find_program('build-aux/gen-resources.py')
 gen_installed_test = find_program('build-aux/gen-installed-test.py')
 gen_thumbnailer = find_program('build-aux/gen-thumbnailer.py')
 
+# Needed by gen-resources.py
+glib_compile_resources = find_program('glib-compile-resources')
+
 gnome = import('gnome')
 
 subdir('gdk-pixbuf')
@@ -379,7 +370,9 @@ subdir('gdk-pixbuf')
 subdir('po')
 
 if not meson.is_cross_build()
-  subdir('tests')
+  if get_option('tests')
+    subdir('tests')
+  endif
   subdir('thumbnailer')
 endif
 
@@ -388,38 +381,33 @@ build_docs = get_option('gtk_doc') or get_option('docs')
 subdir('docs')
 
 if not meson.is_cross_build()
-  # On Visual Studio, we don't normally have a shell interpreter, so use a .bat
-  if cc.get_id() == 'msvc'
-    meson.add_install_script('build-aux/post-install.bat',
-      gdk_pixbuf_bindir,
-      gdk_pixbuf_libdir,
-      gdk_pixbuf_binary_version,
-    )
-  else
-    meson.add_install_script('build-aux/post-install.sh',
-      gdk_pixbuf_bindir,
-      gdk_pixbuf_libdir,
-      gdk_pixbuf_binary_version,
-    )
-  endif
+  meson.add_install_script('build-aux/post-install.py',
+    gdk_pixbuf_bindir,
+    gdk_pixbuf_libdir,
+    gdk_pixbuf_binary_version,
+  )
 endif
 
-summary = [
-  '',
-  'GDK-Pixbuf @0@'.format(meson.project_version()),
-  '==================',
-  '           prefix: @0@'.format(gdk_pixbuf_prefix),
-  '           libdir: @0@'.format(gdk_pixbuf_libdir),
-  '          datadir: @0@'.format(gdk_pixbuf_datadir),
-  '       libexecdir: @0@'.format(gdk_pixbuf_libexecdir),
-  '',
-  '  enabled loaders: @0@'.format(' '.join(enabled_loaders)),
-  '',
-  '    documentation: @0@'.format(build_docs),
-  '        man pages: @0@'.format(get_option('man')),
-  '    introspection: @0@'.format(get_option('gir')),
-  '  installed tests: @0@'.format(get_option('installed_tests')),
-  '      relocatable: @0@'.format(get_option('relocatable')),
-  '',
-]
-message('\n'.join(summary))
+if not meson.is_subproject()
+  meson.add_dist_script('build-aux/dist.py')
+endif
+
+summary('Shared modules', build_modules, section: 'Loaders')
+summary('Enabled loaders', enabled_loaders, section: 'Loaders')
+summary('Builtin loaders', builtin_loaders, section: 'Loaders')
+
+summary('Debugging', get_option('debug'), section: 'Build')
+summary('Optimization', get_option('optimization'), section: 'Build')
+summary('GIO MIME sniffing', use_gio_mime, section: 'Build')
+summary('MediaLib', use_medialib, section: 'Build')
+summary('Introspection', build_gir, section: 'Build')
+summary('Documentation', build_docs, section: 'Build')
+summary('Manual pages', get_option('man'), section: 'Build')
+summary('Relocatable', relocatable, section: 'Build')
+summary('Build tests', get_option('tests'), section: 'Build')
+summary('Installed tests', get_option('installed_tests'), section: 'Build')
+
+summary('prefix', gdk_pixbuf_prefix, section: 'Directories')
+summary('libdir', gdk_pixbuf_libdir, section: 'Directories')
+summary('datadir', gdk_pixbuf_datadir, section: 'Directories')
+summary('libexecdir', gdk_pixbuf_libdir, section: 'Directories')

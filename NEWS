@@ -1,3 +1,94 @@
+2.42.10 (stable)
+===
+
+- Search for rst2man.py [!145, Matt Turner]
+- Update the memory size limit for JPEG images [#216, #218]
+- Translation updates
+
+2.42.9 (stable)
+===
+
+- Fix the check for maximum value of LZW initial code size [#136, Robert Ancell]
+- Use CMake for dependencies on Windows/MSVC [!131, Chun-Wei Fan]
+- Add option for building tests [!132]
+- Move man pages to reStructuredText [!134]
+- Disable relocation when built as a static libary on Windows [!136, Hesham Essam]
+- Update wrap file for libjpeg-turbo [!138, Georges Basile Stavracas Neto]
+- Limit the memory size when loading image data [#205, Sam Ezeh]
+
+2.42.8 (stable)
+===
+
+- Clear the pixbuf's memory buffer to avoid returning uninitialized memory [#199]
+- Turn GdkPixbufModule functions into typed callbacks [!123]
+- tiff: Use non-deprecated C99 integer types [!124]
+- gif: Check for overflow when compositing or clearing frames [#190]
+- Change png/jpeg/tiff build options from boolean to feature [!118]
+- jpeg: Do not rely on UB around setjmp/longjmp [#143]
+- Build fixes [!114, #185, #182]
+- Documentation fixes [!120, !125]
+- Translation updates
+
+2.42.6 (stable)
+===
+
+ - Disable shared-mime-info dependency on Android [BogDan Vatra, !104]
+ - Yield gtk_doc option value in subprojects
+ - Always initialise locale on thumbnailer startup [Bastien Nocera, !110]
+ - Add fallback subproject for libjpeg [Benjamin Otte, !109]
+ - Install API reference directly under $datadir/doc/gdk-pixbuf
+ - Use type:array for the builtin_loaders option
+ - Default to using builtin png and jpeg loaders
+ - Replace platform-specific post-install script files with a Python script
+
+2.42.4 (stable)
+===
+
+ - Make enum type registration thread safe
+ - Do not install skipped test files [Jan Tojnar]
+ - Fix GIF initialization [Simon McVittie]
+ - Always run GIF loader tests [Simon McVittie]
+ - Fix leaks discovered via ASan [Simon McVittie]
+ - Expose GdkPixbufLoader API via introspection [Paolo Borelli]
+ - Fix revert-to-previous first frame behaviour for GIF files [Robert Ancell, #166]
+ - Link to libintl if needed [Fabrice Fontaine]
+ - Improve support for using gdk-pixbuf as a subproject [Xavier Claessens]
+ - Fix build with GModule disabled [Fabrice Fontaine]
+ - Use gi-docgen to generate the API reference from introspection data
+
+2.42.2 (stable)
+===
+
+ - Requre Meson 0.55.3
+ - Improve the PNG save operation
+ - Fix leak in the error path of the XPM loader
+ - Fix loading GIF without a GCE rendering color 0 [Robert Ancell, #162]
+ - Fix invalid LZW codes in the GIF loader [Robert Ancell, #164, CVE-2020-29385]
+
+2.42.0 (stable)
+===
+
+ - Remove the libjasper JPEG2000 loader
+ - Split the gdk-pixbuf-xlib library to a separate repository
+ - Fix build on Solaris [Alan Coopersmith]
+ - Fix cppcheck 'shifting signed 32-bit value warning' [Emmanuel Fleury, #96]
+ - Fix memory leaks in pixops error paths [Alex Henrie]
+ - Improve internal consistency of loaders [Federico Mena Quintero]
+ - Fix build with MSVC [Chun-wei Fan]
+ - Skip bytes during JPEG incremental load [Nathan Lee]
+ - Check for overflows [#132]
+ - Add missing test for issue #70 [Bastien Nocera]
+ - Let the test suite cope with missing loaders [#123]
+ - Fix build on SunOS [#128]
+ - Check for mmap failure [Tobias Müller]
+ - Fix UB in the XPM loader [Tobias Stoeckmann]
+ - Speed up alpha scaling pixop [Jan Ziak]
+ - Add the `gtk_doc` configuration option, and deprecate `docs`
+ - Add the `introspection` configuration option, and remove `gir` [Xavier Claessens, !85]
+ - Handle truncated PNMs more gracefully [Felix Riemann, #111]
+ - Clean up GIF loader code [Robert Ancell]
+ - Fix colormap handling in GIF [Robert Ancell, #156]
+
 2.40.0 (stable)
 ===
 

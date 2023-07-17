@@ -1,33 +1,36 @@
 option('png',
        description: 'Enable PNG loader (requires libpng)',
-       type: 'boolean',
-       value: true)
+       type: 'feature',
+       value: 'enabled')
 option('tiff',
        description: 'Enable TIFF loader (requires libtiff), disabled on Windows if "native_windows_loaders" is used',
-       type: 'boolean',
-       value: true)
+       type: 'feature',
+       value: 'auto')
 option('jpeg',
        description: 'Enable JPEG loader (requires libjpeg), disabled on Windows if "native_windows_loaders" is used',
-       type: 'boolean',
-       value: true)
+       type: 'feature',
+       value: 'enabled')
 option('builtin_loaders',
-       description: 'Comma-separated list of loaders to build into gdk-pixbuf, or "none", or "all" to build all buildable loaders into gdk-pixbuf',
-       type: 'string',
-       value: 'none')
+       description: 'Comma-separated list of loaders to build into gdk-pixbuf',
+       type: 'array',
+       choices: ['all', 'none', 'windows', 'png', 'bmp', 'gif', 'ico', 'ani', 'jpeg', 'pnm', 'tiff', 'xpm', 'xbm', 'tga', 'icns', 'qtif'],
+       value: ['png', 'jpeg'])
 option('gtk_doc',
-       description: 'Whether to generate the API reference (requires GTK-Doc)',
+       description: 'Whether to generate the API reference',
        type: 'boolean',
-       value: false)
+       value: false,
+       yield: true)
 option('docs',
        description: 'Whether to generate the whole documentation (see: gtk_doc and man options) [Deprecated]',
        type: 'boolean',
        value: false)
-option('gir',
+option('introspection',
        description: 'Whether to generate the API introspection data (requires GObject-Introspection)',
-       type: 'boolean',
-       value: true)
+       type: 'feature',
+       value: 'auto',
+       yield: true)
 option('man',
-       description: 'Whether to generate man pages (requires xlstproc)',
+       description: 'Whether to generate man pages (requires rst2man)',
        type: 'boolean',
        value: true)
 option('relocatable',
@@ -38,6 +41,10 @@ option('native_windows_loaders',
        description: 'Use Windows system components to handle BMP, EMF, GIF, ICO, JPEG, TIFF and WMF images, overriding jpeg and tiff.  To build this into gdk-pixbuf, pass in windows" with the other loaders to build in or use "all" with the builtin_loaders option',
        type: 'boolean',
        value: false)
+option('tests',
+       description: 'Build the test suite',
+       type: 'boolean',
+       value: true)
 option('installed_tests',
        description: 'Install the test suite',
        type: 'boolean',
