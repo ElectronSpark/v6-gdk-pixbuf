@@ -105,7 +105,7 @@ gdk_pixbuf_new_from_data (const guchar           *data,
  *
  * Currently only RGB images with 8 bits per sample are supported.
  *
- * This is the `GBytes` variant of gdk_pixbuf_new_from_data(), useful
+ * This is the `GBytes` variant of [ctor@GdkPixbuf.Pixbuf.new_from_data], useful
  * for language bindings.
  *
  * Return value: (transfer full): A newly-created pixbuf
