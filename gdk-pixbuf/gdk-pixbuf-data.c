@@ -49,6 +49,16 @@
  * finalized, your destroy notification function will be called, and
  * it is its responsibility to free the pixel array.
  *
+ * Note: This call expects the actual RGBA pixel data, not an encoded
+ * image data format (like jpeg, png etc). If you want to create a
+ * #GdkPixbuf out of encoded image data, you should use the following:
+ *
+ * ```c
+ * stream = g_memory_input_stream_new_from_data (data, ...);
+ *
+ * pixbuf = gdk_pixbuf_new_from_stream (stream);
+ * ```
+ *
  * See also: [ctor@GdkPixbuf.Pixbuf.new_from_bytes]
  *
  * Return value: (transfer full): A newly-created pixbuf
@@ -107,6 +117,17 @@ gdk_pixbuf_new_from_data (const guchar           *data,
  *
  * This is the `GBytes` variant of [ctor@GdkPixbuf.Pixbuf.new_from_data], useful
  * for language bindings.
+ *
+ * Note: This call expects the actual RGBA pixel data, not an encoded
+ * image data format (like jpeg, png etc). If you want to create a
+ * #GdkPixbuf out of encoded image data in #GBytes, you should use the
+ * following:
+ *
+ * ```c
+ * stream = g_memory_input_stream_new_from_bytes (bytes);
+ *
+ * pixbuf = gdk_pixbuf_new_from_stream (stream);
+ * ```
  *
  * Return value: (transfer full): A newly-created pixbuf
  *
