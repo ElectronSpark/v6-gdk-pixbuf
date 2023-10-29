@@ -94,7 +94,11 @@ if cc.has_function('lrint', dependencies: mathlib_dep)
   gdk_pixbuf_conf.set('HAVE_LRINT', 1)
 endif
 
-intl_dep = cc.find_library('intl', required: false)
+if meson.version().version_compare('>=0.59')
+  intl_dep = dependency('intl', required: false)
+else
+  intl_dep = cc.find_library('intl', required: false)
+endif
 if cc.has_function('bind_textdomain_codeset', prefix: '#include <libintl.h>', dependencies: intl_dep)
   gdk_pixbuf_conf.set('HAVE_BIND_TEXTDOMAIN_CODESET', 1)
 endif
