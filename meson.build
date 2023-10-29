@@ -99,7 +99,9 @@ if meson.version().version_compare('>=0.59')
 else
   intl_dep = cc.find_library('intl', required: false)
 endif
-if cc.has_function('bind_textdomain_codeset', prefix: '#include <libintl.h>', dependencies: intl_dep)
+# We can't use cc.has_function() if libintl and gdk-pixbuf are both built as
+# subprojects of a parent project; assume bind_textdomain_codeset is available
+if intl_dep.type_name() == 'internal' or cc.has_function('bind_textdomain_codeset', prefix: '#include <libintl.h>', dependencies: intl_dep)
   gdk_pixbuf_conf.set('HAVE_BIND_TEXTDOMAIN_CODESET', 1)
 endif
 
