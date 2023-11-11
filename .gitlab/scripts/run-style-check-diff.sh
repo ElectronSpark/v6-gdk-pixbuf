@@ -2,6 +2,9 @@
 
 set -e
 
+# Allow git to run for personal forks
+git config --add safe.directory /builds/${CI_PROJECT_NAMESPACE}/gdk-pixbuf
+
 # We need to add a new remote for the upstream master, since this script could
 # be running in a personal fork of the repository which has out of date branches.
 if [ "${CI_PROJECT_NAMESPACE}" != "GNOME" ]; then
