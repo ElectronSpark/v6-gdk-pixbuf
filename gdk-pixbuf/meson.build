@@ -269,7 +269,7 @@ endif
 gdkpixbuf_dep = declare_dependency(
   link_with: gdkpixbuf,
   include_directories: root_inc,
-  dependencies: gdk_pixbuf_deps,
+  dependencies: [ gdk_pixbuf_deps, included_loaders_deps ],
   sources: [ gdkpixbuf_enum_h, built_girs ],
 )
 meson.override_dependency('gdk-pixbuf-2.0', gdkpixbuf_dep)
