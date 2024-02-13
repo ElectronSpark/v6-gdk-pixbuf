@@ -190,6 +190,7 @@ get_file_formats (void)
 
 static HMODULE gdk_pixbuf_dll;
 
+#ifdef DLL_EXPORT
 BOOL WINAPI
 DllMain (HINSTANCE hinstDLL,
          DWORD     fdwReason,
@@ -203,6 +204,8 @@ DllMain (HINSTANCE hinstDLL,
 
   return TRUE;
 }
+#endif
+
 #endif
 
 gchar *
