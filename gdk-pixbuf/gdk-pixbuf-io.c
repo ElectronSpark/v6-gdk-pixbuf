@@ -204,7 +204,7 @@ DllMain (HINSTANCE hinstDLL,
 
   return TRUE;
 }
-#endif
+#endif /* DLL_EXPORT */
 
 #endif
 
