@@ -206,7 +206,7 @@ DllMain (HINSTANCE hinstDLL,
 }
 #endif /* DLL_EXPORT */
 
-#endif
+#endif /* G_OS_WIN32 */
 
 gchar *
 gdk_pixbuf_get_toplevel (void)
