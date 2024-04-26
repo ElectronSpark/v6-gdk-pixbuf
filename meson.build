@@ -54,7 +54,8 @@ gdk_pixbuf_datadir = join_paths(gdk_pixbuf_prefix, get_option('datadir'))
 gdk_pixbuf_mandir = join_paths(gdk_pixbuf_prefix, get_option('mandir'))
 gdk_pixbuf_localedir = join_paths(gdk_pixbuf_prefix, get_option('localedir'))
 gdk_pixbuf_libexecdir = join_paths(gdk_pixbuf_prefix, get_option('libexecdir'))
-gdk_pixbuf_loaderdir = join_paths(gdk_pixbuf_libdir, 'gdk-pixbuf-@0@/@1@/loaders'.format(gdk_pixbuf_api_version, gdk_pixbuf_binary_version))
+gdk_pixbuf_binarydir = join_paths(gdk_pixbuf_libdir, 'gdk-pixbuf-@0@/@1@'.format(gdk_pixbuf_api_version, gdk_pixbuf_binary_version))
+gdk_pixbuf_loaderdir = join_paths(gdk_pixbuf_binarydir, 'loaders')
 
 # Dependencies
 glib_req_version = '>= 2.56.0'
