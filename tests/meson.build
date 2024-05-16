@@ -81,7 +81,7 @@ installed_tests = {
     'suites': ['io'],
   },
   'pixbuf-jpeg': {
-    'suites': ['format'],
+    'suites': ['format', 'slow'],
     'skip': not enabled_loaders.contains('jpeg'),
   },
   'pixbuf-dpi': {
