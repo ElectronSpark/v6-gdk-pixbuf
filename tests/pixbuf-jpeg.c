@@ -185,7 +185,7 @@ test_jpeg_fbfbfbfb (void)
       return;
     }
 
-  g_test_message ("Load JPEG with size 0xfbfbfbfb (issue: 250)");
+  g_test_message ("Load JPEG with size 0xfbfbfbfb (issue: 205)");
 
   g_file_get_contents (g_test_get_filename (G_TEST_DIST, "issue205.jpg", NULL), &contents, &size, &error);
   g_assert_no_error (error);
