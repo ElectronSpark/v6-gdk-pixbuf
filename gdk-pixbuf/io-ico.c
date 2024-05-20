@@ -440,6 +440,22 @@ static void DecodeHeader(guchar *Data, gint Bytes,
 
 		BIH = Data+entry->DIBoffset;
 
+                /* Check for PNG header */
+                if (BIH[0] == 0x89 && BIH[1] == 'P' && BIH[2] == 'N' && BIH[3] == 'G') {
+                        /* Create a PNG pixbuf data can be passed on to */
+                        png_pixbuf_create (State, error);
+
+                        /* We already have 40 bytes of the possible bitmap InfoHeader.
+                           Pass this on to the PNG pixbuf loader. */
+                        png_pixbuf_write (State->pngloader, Data+entry->DIBoffset, INFOHEADER_SIZE, error);
+
+                        /* The rest of this function applies only to bitmaps. */
+                        return;
+                } else if ((BIH[16] != 0) || (BIH[17] != 0) || (BIH[18] != 0) || (BIH[19] != 0)) {
+                        DEBUG(g_print("Skipping icon with score %d, as it is compressed\n", entry->ImageScore));
+                        continue;
+                }
+
 		DEBUG(g_print("Selecting icon with score %d\n", entry->ImageScore));
 
 		/* If we made it to here then we have selected a BIH structure
@@ -458,18 +474,6 @@ static void DecodeHeader(guchar *Data, gint Bytes,
 		return;
 	}
 
-  /* Check for PNG header */
-	if (BIH[0] == 0x89 && BIH[1] == 'P' && BIH[2] == 'N' && BIH[3] == 'G') {
-		/* Create a PNG pixbuf data can be passed on to */
-		png_pixbuf_create (State, error);
-
-		/* We already have 40 bytes of the possible bitmap InfoHeader.
-			Pass this on to the PNG pixbuf loader. */
-		png_pixbuf_write (State->pngloader, Data+entry->DIBoffset, INFOHEADER_SIZE, error);
-
-		/* The rest of this function applies only to bitmaps. */
-		return;
-	}
 	/* This is the one we're going with */
 	State->DIBoffset = entry->DIBoffset;
 	State->x_hot = entry->x_hot;
