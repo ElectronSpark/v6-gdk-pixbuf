@@ -229,6 +229,8 @@ png_prepared_callback (GdkPixbufLoader *loader,
 	if (!context->pixbuf)
 		return;
 
+        g_object_ref(context->pixbuf);
+
 	if (context->prepared_func != NULL)
 		(*context->prepared_func) (context->pixbuf, NULL, context->user_data);
 }
