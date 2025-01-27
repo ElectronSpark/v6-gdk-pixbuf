@@ -666,16 +666,29 @@ gdk_pixbuf_io_init_builtin (void)
 static gboolean
 gdk_pixbuf_io_init (void)
 {
-	char *module_file;
-	gboolean ret;
+        gchar *module_file;
+        gchar **module_files;
+        int i;
+        gboolean ret = TRUE;
 
-	gdk_pixbuf_io_init_builtin ();
+        gdk_pixbuf_io_init_builtin ();
+
 #ifdef USE_GMODULE
-	module_file = gdk_pixbuf_get_module_file ();
+        /* Load modules from GDK_PIXBUF_MODULE_FILES. */
+        module_file = g_getenv ("GDK_PIXBUF_MODULE_FILES");
+        if (module_file) {
+                module_files = g_strsplit (module_file, G_SEARCHPATH_SEPARATOR_S, 0);
+                for (i = 0; module_files[i] != NULL; i++)
+                        ret = gdk_pixbuf_io_init_modules (module_files[i], NULL) && ret;
+                g_strfreev (module_files);
+        }
+
+        /* Load modules from GDK_PIXBUF_MODULE_FILE or 'loaders.cache' in $libdir. */
+        module_file = gdk_pixbuf_get_module_file ();
+        ret = gdk_pixbuf_io_init_modules (module_file, NULL) && ret;
+        g_free (module_file);
 #endif
-	ret = gdk_pixbuf_io_init_modules (module_file, NULL);
-	g_free (module_file);
-	return ret;
+        return ret;
 }
 
 #define module(type) \
