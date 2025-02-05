@@ -333,6 +333,11 @@ gdkpixbuf_bin = [
   [ 'gdk-pixbuf-query-loaders', [ 'queryloaders.c' ] ],
 ]
 
+bin_link_language = 'c'
+if loaders_cpp
+  bin_link_language = 'cpp'
+endif
+
 foreach bin: gdkpixbuf_bin
   bin_name = bin[0]
   bin_source = bin.get(1, bin_name + '.c')
@@ -342,6 +347,7 @@ foreach bin: gdkpixbuf_bin
                    dependencies: gdk_pixbuf_deps + [ gdkpixbuf_dep ],
                    include_directories: [ root_inc, gdk_pixbuf_inc ],
                    c_args: common_cflags + gdk_pixbuf_cflags,
+                   link_language : bin_link_language,
                    install: true)
   meson.override_find_program(bin_name, bin)
 
