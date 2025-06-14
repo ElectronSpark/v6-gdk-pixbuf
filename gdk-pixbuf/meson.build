@@ -296,6 +296,13 @@ gdkpixbuf_dep = declare_dependency(
   include_directories: root_inc,
   dependencies: gdk_pixbuf_deps,
   sources: [ gdkpixbuf_enum_h, built_girs ],
+  # keep in sync with pkg-config below, omitting bindir and programs
+  variables: {
+    'gdk_pixbuf_binary_version': gdk_pixbuf_binary_version,
+    'gdk_pixbuf_binarydir': gdk_pixbuf_binarydir,
+    'gdk_pixbuf_moduledir': gdk_pixbuf_binarydir / 'loaders',
+    'gdk_pixbuf_cache_file': gdk_pixbuf_binarydir / 'loaders.cache',
+  },
 )
 meson.override_dependency('gdk-pixbuf-2.0', gdkpixbuf_dep)
 
@@ -397,6 +404,7 @@ pkgconfig.generate(
   gdkpixbuf,
   name: 'GdkPixbuf',
   description: 'Image loading and scaling',
+  # keep in sync with gdkpixbuf_dep above
   variables: [
     'bindir=${prefix}/@0@'.format(get_option('bindir')),
     'gdk_pixbuf_binary_version=@0@'.format(gdk_pixbuf_binary_version),
