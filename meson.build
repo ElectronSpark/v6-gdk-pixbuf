@@ -360,6 +360,8 @@ endif
 
 # Don't check and build the tiff loader if native_windows_loaders is true
 tiff_opt = get_option('tiff')
+tiff_dep = dependency('', required: false)
+loaders_cpp = false
 if not tiff_opt.disabled() and not native_windows_loaders
   # We currently don't have a fallback subproject, but this handles error
   # reporting if tiff_opt is enabled.
@@ -368,6 +370,10 @@ if not tiff_opt.disabled() and not native_windows_loaders
   if tiff_dep.found()
     enabled_loaders += 'tiff'
     loaders_deps += tiff_dep
+
+    # If libtiff is built with LERC support, it should be linked with
+    # a C++ linker.
+    loaders_cpp = loaders_cpp or add_languages('cpp', required: false, native: false)
   endif
 endif
 
