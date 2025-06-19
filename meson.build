@@ -6,7 +6,7 @@ project('gdk-pixbuf', 'c',
     'warning_level=1',
     'c_std=gnu99',
   ],
-  meson_version: '>= 1.0',
+  meson_version: '>= 1.1',
 )
 
 add_project_arguments([ '-D_POSIX_C_SOURCE=200809L', '-D_DEFAULT_SOURCE', '-D_XOPEN_SOURCE=700' ], language: 'c')
@@ -245,6 +245,13 @@ gdk_pixbuf_conf.set('USE_GMODULE', build_modules)
 
 # Check which loaders should be built into gdk-pixbuf
 builtin_loaders = get_option('builtin_loaders')
+if builtin_loaders.contains('default')
+  if host_machine.system() == 'linux'
+    builtin_loaders = ['glycin']
+  else
+    builtin_loaders = ['png','jpeg']
+  endif
+endif
 
 # If 'all' is specified for builtin_loaders, build all
 # buildable loaders into gdk-pixbuf
@@ -260,56 +267,12 @@ is_msvc_like = cc.get_argument_syntax() == 'msvc'
 enabled_loaders = []
 loaders_deps = []
 
-png_opt = get_option('png')
-if not png_opt.disabled()
-  png_dep = dependency(is_msvc_like ? 'png' : 'libpng', required: false)
-
-  # Finally, look for the dependency in a fallback subproject if allowed by
-  # the --wrap-mode option. We don't directly call subproject() here because
-  # that will bypass --wrap-mode and cause issues for distro packagers.
-  # See: https://mesonbuild.com/Reference-manual.html#dependency
-  if not png_dep.found()
-    png_dep = dependency('libpng',
-      fallback: ['libpng', 'libpng_dep'],
-      required: png_opt,
-    )
-  endif
-
-  if png_dep.found()
-    enabled_loaders += 'png'
-    loaders_deps += png_dep
-  endif
-endif
-
-glycin_dep = dependency('glycin-2', version: '>= 2.0.alpha', required: get_option('glycin'))
+glycin_opt = get_option('glycin').enable_auto_if(host_machine.system() == 'linux')
+glycin_dep = dependency('glycin-2', version: '>= 2.0.alpha', required: glycin_opt)
 if glycin_dep.found()
   glycin_png_dep = dependency('libpng', required: true)
   enabled_loaders += 'glycin'
   loaders_deps += [ glycin_dep, glycin_png_dep ]
-  if cc.has_function('gly_loader_set_accepted_memory_formats', dependencies: glycin_dep)
-    gdk_pixbuf_conf.set('HAVE_GLY_LOADER_SET_ACCEPTED_MEMORY_FORMATS', 1)
-  endif
-endif
-
-gif_opt = get_option('gif')
-if not gif_opt.disabled()
-  enabled_loaders += 'gif'
-endif
-
-others_opt = get_option('others')
-if not others_opt.disabled()
-  # Keep sorted alphabetically
-  enabled_loaders += [
-    'ani',
-    'bmp',
-    'icns',
-    'ico',
-    'pnm',
-    'qtif',
-    'tga',
-    'xbm',
-    'xpm',
-  ]
 endif
 
 # On Windows, check whether we are building the native Windows loaders
@@ -326,50 +289,6 @@ if native_windows_loaders
   loaders_deps += cc.find_library('gdiplus')
   loaders_deps += cc.find_library('ole32')
   enabled_loaders += 'gdiplus'
-endif
-
-# Don't check and build the jpeg loader if native_windows_loaders is true
-jpeg_opt = get_option('jpeg')
-if not jpeg_opt.disabled() and not native_windows_loaders
-  jpeg_dep = dependency(is_msvc_like ? 'jpeg' : 'libjpeg', required: false)
-
-  # Finally, look for the dependency in a fallback
-  if not jpeg_dep.found()
-    jpeg_dep = dependency('libjpeg',
-      fallback: ['libjpeg-turbo', 'jpeg_dep'],
-      required: jpeg_opt,
-    )
-  endif
-
-  if jpeg_dep.found()
-    enabled_loaders += 'jpeg'
-    loaders_deps += jpeg_dep
-
-    if jpeg_dep.type_name() == 'internal'
-      has_destroy_decompress = true
-      has_simple_progression = true
-    else
-      has_destroy_decompress = cc.has_function('jpeg_destroy_decompress', dependencies: jpeg_dep)
-      has_simple_progression = cc.has_function('jpeg_simple_progression', dependencies: jpeg_dep)
-    endif
-
-    if has_destroy_decompress and has_simple_progression
-      gdk_pixbuf_conf.set('HAVE_PROGRESSIVE_JPEG', has_simple_progression)
-    endif
-  endif
-endif
-
-# Don't check and build the tiff loader if native_windows_loaders is true
-tiff_opt = get_option('tiff')
-if not tiff_opt.disabled() and not native_windows_loaders
-  # We currently don't have a fallback subproject, but this handles error
-  # reporting if tiff_opt is enabled.
-  tiff_dep = dependency(is_msvc_like ? 'tiff' : 'libtiff-4', required: tiff_opt)
-
-  if tiff_dep.found()
-    enabled_loaders += 'tiff'
-    loaders_deps += tiff_dep
-  endif
 endif
 
 # Determine whether we enable application bundle relocation support, and we use
