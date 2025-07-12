@@ -403,7 +403,7 @@ foreach bin: gdkpixbuf_bin
 
   bin = executable(bin_name, bin_source,
                    gdkpixbuf_enum_h,
-                   dependencies: gdk_pixbuf_deps + [ gdkpixbuf_dep ],
+                   dependencies: loaders_deps + gdk_pixbuf_deps + [ gdkpixbuf_dep ],
                    include_directories: [ root_inc, gdk_pixbuf_inc ],
                    c_args: common_cflags + gdk_pixbuf_cflags,
                    install: true)
