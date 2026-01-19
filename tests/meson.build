@@ -4,7 +4,7 @@
 # gdk-pixbuf-pixdata from build directory because it needs all DLL locations in
 # $PATH. Ideally we should use gnome.compile_resources() and let Meson deal with
 # this problem: See https://github.com/mesonbuild/meson/issues/8266.
-if enabled_loaders.contains('png') and host_system != 'windows'
+if enabled_loaders.contains('png') and host_system != 'windows' and not meson.is_cross_build()
   # Resources; we cannot use gnome.compile_resources() here, because we need to
   # override the environment in order to use the utilities we just built instead
   # of the system ones
@@ -164,9 +164,11 @@ endif
 test_deps = gdk_pixbuf_deps + [ gdkpixbuf_dep, ]
 test_args = [ '-k' ]
 test_env = environment()
-test_env.set('G_TEST_SRCDIR', meson.current_source_dir())
-test_env.set('G_TEST_BUILDDIR', meson.current_build_dir())
-test_env.set('GDK_PIXBUF_MODULE_FILE', loaders_cache.full_path())
+if not meson.is_cross_build()
+  test_env.set('G_TEST_SRCDIR', meson.current_source_dir())
+  test_env.set('G_TEST_BUILDDIR', meson.current_build_dir())
+  test_env.set('GDK_PIXBUF_MODULE_FILE', loaders_cache.full_path())
+endif
 
 foreach test_name, test_data: installed_tests
   test_sources = [ test_name + '.c', 'test-common.c' ]
