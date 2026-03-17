@@ -26,6 +26,7 @@
 #include <unistd.h>
 #endif
 #include <string.h>
+#include <math.h>
 
 #include <gio/gio.h>
 #include <errno.h>
@@ -97,22 +98,203 @@ g_file_from_file (FILE    *f,
 }
 #endif
 
+typedef struct {
+  double to_srgb[3][3];
+  double luma[3];
+} CicpPrimaries;
+
+typedef void (*CicpEotfFunc) (double        rgb[3],
+                              const double  luma[3]);
+
+static inline float
+hlg_inv_oetf (float e)
+{
+  const double a = 0.17883277;
+  const double b = 0.28466892;
+  const double c = 0.55991073;
+
+  if (e <= 0.5f)
+    return (float)(e * e / 3.0);
+  else
+    return (float)((exp ((e - c) / a) + b) / 12.0);
+}
+
+static void
+hlg_eotf (double       rgb[3],
+          const double luma[3])
+{
+  double ys;
+  for (int i = 0; i < 3; i++)
+    rgb[i] = hlg_inv_oetf (rgb[i]);
+
+  ys = luma[0] * rgb[0] + luma[1] * rgb[1] + luma[2] * rgb[2];
+  if (ys > 0.0)
+    {
+      double scale = (1000.0 / 203.0) * pow (ys, 0.2);
+      for (int i = 0; i < 3; i++)
+        rgb[i] *= scale;
+    }
+}
+
+static void
+pq_eotf (double       rgb[3],
+         const double luma[3] G_GNUC_UNUSED)
+{
+  const double n = 2610.0 / 16384.0;
+  const double m = 2523.0 / 32.0;
+  const double c1 = 3424.0 / 4096.0;
+  const double c2 = 2413.0 / 128.0;
+  const double c3 = 2392.0 / 128.0;
+  const double sdr_ratio = 203.0 / 10000.0;
+
+  for (int i = 0; i < 3; i++)
+    {
+      double e_pow = pow (rgb[i], 1.0 / m);
+      double num = MAX (e_pow - c1, 0.0);
+      double den = c2 - c3 * e_pow;
+      double y = pow (num / den, 1.0 / n);
+      rgb[i] = (float)(y / sdr_ratio);
+    }
+}
+
+static inline guint8
+linear_to_srgb_u8 (double v)
+{
+  if (v <= 0.0)
+    return 0;
+  else if (v <= 0.0031308)
+    v = 12.92 * v;
+  else if (v < 1.0)
+    v = 1.055 * pow (v, 1.0 / 2.4) - 0.055;
+  else
+    return 255;
+
+  return (guint8)(v * 255.0 + 0.5);
+}
+
+static const CicpPrimaries primaries_bt2020 = {
+  .to_srgb = {
+    {  1.6605, -0.5876, -0.0728 },
+    { -0.1246,  1.1329, -0.0083 },
+    { -0.0182, -0.1006,  1.1187 }
+  },
+  .luma = { 0.2627, 0.6780, 0.0593 }
+};
+
+static const CicpPrimaries primaries_p3 = {
+  .to_srgb = {
+    {  1.2249, -0.2247,  0.0000 },
+    { -0.0420,  1.0419,  0.0000 },
+    { -0.0197, -0.0786,  1.0979 }
+  },
+  .luma = { 0.2290, 0.6917, 0.0793 }
+};
+
+static void
+convert_hdr_to_srgb (guchar              *dest,
+                     const guchar        *src,
+                     int                  stride,
+                     int                  width,
+                     int                  height,
+                     gboolean             has_alpha,
+                     CicpEotfFunc         eotf,
+                     const CicpPrimaries *primaries)
+{
+  const double (*m)[3] = primaries->to_srgb;
+
+  for (int y = 0; y < height; y++)
+    {
+      const guchar *sp = src + y * stride;
+      guchar *dp = dest + y * stride;
+
+      for (int x = 0; x < width; x++)
+        {
+          double rgb[3] = { sp[0] / 255.0f, sp[1] / 255.0f, sp[2] / 255.0f };
+
+          eotf (rgb, primaries->luma);
+
+          dp[0] = linear_to_srgb_u8 (m[0][0] * rgb[0] + m[0][1] * rgb[1] + m[0][2] * rgb[2]);
+          dp[1] = linear_to_srgb_u8 (m[1][0] * rgb[0] + m[1][1] * rgb[1] + m[1][2] * rgb[2]);
+          dp[2] = linear_to_srgb_u8 (m[2][0] * rgb[0] + m[2][1] * rgb[1] + m[2][2] * rgb[2]);
+
+          if (has_alpha)
+            dp[3] = sp[3];
+
+          sp += has_alpha ? 4 : 3;
+          dp += has_alpha ? 4 : 3;
+        }
+    }
+}
+
 static GdkPixbuf *
 convert_glycin_frame_to_pixbuf (GlyFrame *frame)
 {
   GBytes *bytes;
   GlyMemoryFormat format;
+  GlyCicp *cicp;
+  GdkPixbuf *pixbuf = NULL;
 
   bytes = gly_frame_get_buf_bytes (frame);
   format = gly_frame_get_memory_format (frame);
 
-  return gdk_pixbuf_new_from_bytes (bytes,
-                                    GDK_COLORSPACE_RGB,
-                                    gly_memory_format_has_alpha (format),
-                                    8,
-                                    gly_frame_get_width (frame),
-                                    gly_frame_get_height (frame),
-                                    gly_frame_get_stride (frame));
+  cicp = gly_frame_get_color_cicp (frame);
+  if (cicp)
+    {
+       const CicpPrimaries *primaries = NULL;
+       CicpEotfFunc eotf = NULL;
+
+       if (cicp->color_primaries == 9)
+         primaries = &primaries_bt2020;
+       else if (cicp->color_primaries == 12)
+         primaries = &primaries_p3;
+
+       if (cicp->transfer_characteristics == 18)
+         eotf = hlg_eotf;
+       else if (cicp->transfer_characteristics == 16)
+         eotf = pq_eotf;
+
+       if (primaries && eotf)
+         {
+           gsize buf_len = (gsize) gly_frame_get_stride (frame) * gly_frame_get_height (frame);
+           guchar *buf = g_malloc (buf_len);
+           GBytes *converted_bytes;
+
+           convert_hdr_to_srgb (buf, g_bytes_get_data (bytes, NULL),
+                                gly_frame_get_stride (frame),
+                                gly_frame_get_width (frame),
+                                gly_frame_get_height (frame),
+                                gly_memory_format_has_alpha (format),
+                                eotf, primaries);
+
+           converted_bytes = g_bytes_new_take (buf, buf_len);
+           pixbuf = gdk_pixbuf_new_from_bytes (converted_bytes,
+                                               GDK_COLORSPACE_RGB,
+                                               gly_memory_format_has_alpha (format),
+                                               8,
+                                               gly_frame_get_width (frame),
+                                               gly_frame_get_height (frame),
+                                               gly_frame_get_stride (frame));
+           g_bytes_unref (converted_bytes);
+         }
+       else if (cicp->color_primaries != 1)
+         g_warning ("Unsupported CICP (primaries=%u, transfer=%u), image colors may be incorrect",
+                    cicp->color_primaries, cicp->transfer_characteristics);
+
+       gly_cicp_free (cicp);
+    }
+
+  if (!pixbuf)
+    {
+      pixbuf = gdk_pixbuf_new_from_bytes (bytes,
+                                          GDK_COLORSPACE_RGB,
+                                          gly_memory_format_has_alpha (format),
+                                          8,
+                                          gly_frame_get_width (frame),
+                                          gly_frame_get_height (frame),
+                                          gly_frame_get_stride (frame));
+
+    }
+  return pixbuf;
 }
 
 /* }}} */
