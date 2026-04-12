@@ -464,6 +464,7 @@ gdk_pixbuf_flip (const GdkPixbuf *src,
   GdkPixbuf *dest;
   const guchar *p;
   guchar *q;
+  gsize row_length;
   gint x, y;
 
   g_return_val_if_fail (GDK_IS_PIXBUF (src), NULL);
@@ -480,11 +481,12 @@ gdk_pixbuf_flip (const GdkPixbuf *src,
 
   if (!horizontal) /* flip vertical */
     {
+      row_length = dest->width * ((dest->n_channels * dest->bits_per_sample + 7) / 8);
       for (y = 0; y < dest->height; y++)
 	{
 	  p = src_pixels + OFFSET (src, 0, y);
 	  q = dest_pixels + OFFSET (dest, 0, dest->height - y - 1);
-	  memcpy (q, p, dest->rowstride);
+	  memcpy (q, p, row_length);
 	}
     }
   else /* flip horizontal */
