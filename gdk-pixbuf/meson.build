@@ -284,7 +284,7 @@ gdkpixbuf = library('gdk_pixbuf-2.0',
                     install: true)
 
 gir = find_program('g-ir-scanner', required : get_option('introspection'))
-build_gir = gir.found() and (not meson.is_cross_build() or get_option('introspection').enabled())
+build_gir = gir.found() or get_option('introspection').enabled()
 
 if build_gir
   gir_args = [
