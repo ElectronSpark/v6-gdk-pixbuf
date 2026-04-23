@@ -51,6 +51,16 @@
  * finalized, your destroy notification function will be called, and
  * it is its responsibility to free the pixel array.
  *
+ * Note: This call expects the actual RGBA pixel data, not an encoded
+ * image data format (like jpeg, png etc). If you want to create a
+ * #GdkPixbuf out of encoded image data, you should use the following:
+ *
+ * ```c
+ * stream = g_memory_input_stream_new_from_data (data, ...);
+ *
+ * pixbuf = gdk_pixbuf_new_from_stream (stream);
+ * ```
+ *
  * See also: [ctor@GdkPixbuf.Pixbuf.new_from_bytes]
  *
  * Return value: (transfer full): A newly-created pixbuf
@@ -95,9 +105,9 @@ gdk_pixbuf_new_from_data (const guchar           *data,
 
 /**
  * gdk_pixbuf_new_from_bytes:
- * @data: Image data in 8-bit/sample packed format inside a #GBytes
- * @colorspace: Colorspace for the image data
- * @has_alpha: Whether the data has an opacity channel
+ * @bytes: Image data in 8-bit/sample packed format inside a #GBytes
+ * @colorspace: Colorspace for the image
+ * @has_alpha: Whether the image has an opacity channel
  * @bits_per_sample: Number of bits per sample
  * @width: Width of the image in pixels, must be > 0
  * @height: Height of the image in pixels, must be > 0
@@ -107,15 +117,26 @@ gdk_pixbuf_new_from_data (const guchar           *data,
  *
  * Currently only RGB images with 8 bits per sample are supported.
  *
- * This is the `GBytes` variant of gdk_pixbuf_new_from_data(), useful
+ * This is the `GBytes` variant of [ctor@GdkPixbuf.Pixbuf.new_from_data], useful
  * for language bindings.
+ *
+ * Note: This call expects the actual RGBA pixel data, not an encoded
+ * image data format (like jpeg, png etc). If you want to create a
+ * #GdkPixbuf out of encoded image data in #GBytes, you should use the
+ * following:
+ *
+ * ```c
+ * stream = g_memory_input_stream_new_from_bytes (bytes);
+ *
+ * pixbuf = gdk_pixbuf_new_from_stream (stream);
+ * ```
  *
  * Return value: (transfer full): A newly-created pixbuf
  *
  * Since: 2.32
  **/
 GdkPixbuf *
-gdk_pixbuf_new_from_bytes (GBytes        *data,
+gdk_pixbuf_new_from_bytes (GBytes        *bytes,
                            GdkColorspace  colorspace,
                            gboolean       has_alpha,
 			   int            bits_per_sample,
@@ -123,15 +144,15 @@ gdk_pixbuf_new_from_bytes (GBytes        *data,
                            int            height,
                            int            rowstride)
 {
-	g_return_val_if_fail (data != NULL, NULL);
+	g_return_val_if_fail (bytes != NULL, NULL);
 	g_return_val_if_fail (colorspace == GDK_COLORSPACE_RGB, NULL);
 	g_return_val_if_fail (bits_per_sample == 8, NULL);
 	g_return_val_if_fail (width > 0, NULL);
 	g_return_val_if_fail (height > 0, NULL);
-	g_return_val_if_fail (g_bytes_get_size (data) >= width * height * (has_alpha ? 4 : 3), NULL);
+	g_return_val_if_fail (g_bytes_get_size (bytes) >= width * height * (has_alpha ? 4 : 3), NULL);
 
 	return g_object_new (GDK_TYPE_PIXBUF,
-                             "pixel-bytes", data,
+                             "pixel-bytes", bytes,
                              "colorspace", colorspace,
                              "n-channels", has_alpha ? 4 : 3,
                              "bits-per-sample", bits_per_sample,

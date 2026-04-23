@@ -281,7 +281,7 @@ GdkPixbuf *gdk_pixbuf_new_from_data (const guchar *data,
 				     gpointer destroy_fn_data);
 
 GDK_PIXBUF_AVAILABLE_IN_2_32
-GdkPixbuf *gdk_pixbuf_new_from_bytes (GBytes *data,
+GdkPixbuf *gdk_pixbuf_new_from_bytes (GBytes *bytes,
 				      GdkColorspace colorspace,
 				      gboolean has_alpha,
 				      int bits_per_sample,
