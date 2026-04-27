@@ -79,6 +79,8 @@ struct BitmapInfoHeader {
 	guint biClrImportant;
 };
 
+#define PNG_HEADER "\x89PNG\r\n\x1a\n"
+
 #ifdef DUMPBIH
 /*
 
@@ -147,6 +149,7 @@ struct ico_progressive_state {
 	guchar *HeaderBuf;	/* The buffer for the header (incl colormap) */
 	gint BytesInHeaderBuf;  /* The size of the allocated HeaderBuf */
 	gint HeaderDone;	/* The nr of bytes actually in HeaderBuf */
+	gint PixelBytesInHeader;/* The nr of pixel bytes in HeaderBuf */
 
 	gint LineWidth;		/* The width of a line in bytes */
 	guchar *LineBuf;	/* Buffer for 1 line */
@@ -221,7 +224,7 @@ static void DecodeHeader(guchar *Data, gint Bytes,
  */
 	struct ico_direntry_data *entry;
 	gint IconCount = 0; /* The number of icon-versions in the file */
-	guchar *BIH; /* The DIB for the used icon */
+	guchar *BIH = NULL; /* The DIB for the used icon */
  	guchar *Ptr;
  	gint I;
 	guint16 imgtype; /* 1 = icon, 2 = cursor */
@@ -332,10 +335,11 @@ static void DecodeHeader(guchar *Data, gint Bytes,
 	/* Now go through and find one we can parse */
 	entry = NULL;
 	for (l = State->entries; l != NULL; l = g_list_next (l)) {
-		entry = l->data;
+		struct ico_direntry_data *current_entry = l->data;
+		guchar *current_BIH;
 
 		/* Avoid invoking undefined behavior in the State->HeaderSize calculation below */
-		if (entry->DIBoffset > G_MAXINT - INFOHEADER_SIZE) {
+		if (current_entry->DIBoffset > G_MAXINT - INFOHEADER_SIZE) {
 			g_set_error (error,
 			             GDK_PIXBUF_ERROR,
 			             GDK_PIXBUF_ERROR_CORRUPT_IMAGE,
@@ -344,7 +348,7 @@ static void DecodeHeader(guchar *Data, gint Bytes,
 		}
 
 		/* We know how many bytes are in the "header" part. */
-		State->HeaderSize = entry->DIBoffset + INFOHEADER_SIZE;
+		State->HeaderSize = current_entry->DIBoffset + INFOHEADER_SIZE;
 
 		if (State->HeaderSize>State->BytesInHeaderBuf) {
 			guchar *tmp=g_try_realloc(State->HeaderBuf,State->HeaderSize);
@@ -361,24 +365,36 @@ static void DecodeHeader(guchar *Data, gint Bytes,
 		if (Bytes<State->HeaderSize)
 			return;
 
-		BIH = Data+entry->DIBoffset;
-
-		/* A compressed icon, try the next one */
-		if ((BIH[16] != 0) || (BIH[17] != 0) || (BIH[18] != 0)
-		    || (BIH[19] != 0)) {
-			DEBUG(g_print("Skipping icon with score %d, as it is compressed\n", entry->ImageScore));
+		current_BIH = Data + current_entry->DIBoffset;
+		if (((current_BIH[3] << 24) + (current_BIH[2] << 16) + (current_BIH[1] << 8) + (current_BIH[0])) != sizeof(struct BitmapInfoHeader)) {
+			if (memcmp (current_BIH, PNG_HEADER, sizeof(PNG_HEADER)) == 0) {
+				/* PNG compressed icons have the BIH header replaced with PNG file data */
+				DEBUG(g_print("Skipping icon with score %d, as it is PNG compressed\n", current_entry->ImageScore));
+				/* FIXME: open icon with png loader */
+			} else {
+				DEBUG(g_print("Skipping icon with score %d, invalid header\n", current_entry->ImageScore));
+			}
 			continue;
 		}
 
-		DEBUG(g_print("Selecting icon with score %d\n", entry->ImageScore));
+		/* A compressed icon, try the next one */
+		if ((current_BIH[16] != 0) || (current_BIH[17] != 0) || (current_BIH[18] != 0)
+			|| (current_BIH[19] != 0)) {
+			DEBUG(g_print("Skipping icon with score %d, as it is compressed\n", current_entry->ImageScore));
+			continue;
+		}
+
+		DEBUG(g_print("Selecting icon with score %d\n", current_entry->ImageScore));
 
 		/* If we made it to here then we have selected a BIH structure
 		 * in a format that we can parse */
+		entry = current_entry;
+		BIH = current_BIH;
 		break;
 	}
 
 	/* No valid icon found, because all are compressed? */
-	if (l == NULL) {
+	if (entry == NULL) {
 		g_set_error_literal (error,
 				     GDK_PIXBUF_ERROR,
 				     GDK_PIXBUF_ERROR_CORRUPT_IMAGE,
@@ -464,6 +480,7 @@ static void DecodeHeader(guchar *Data, gint Bytes,
 		State->HeaderBuf = tmp;
  		State->BytesInHeaderBuf = State->HeaderSize;
  	}
+        State->PixelBytesInHeader = State->HeaderDone - State->HeaderSize;
  	if (Bytes < State->HeaderSize) {
  		return;
 	}
@@ -943,9 +960,21 @@ gdk_pixbuf__ico_image_load_increment(gpointer data,
 		else {
 			BytesToCopy =
 			    context->LineWidth - context->LineDone;
-			if (BytesToCopy > size)
-				BytesToCopy = size;
+			if (context->PixelBytesInHeader > 0) {
+                                int BytesToCopyFromHeaderBuffer = MIN(context->PixelBytesInHeader, BytesToCopy);
+				/* Should be non-NULL once the header is decoded, as below. */
+				g_assert (context->LineBuf != NULL);
 
+				memmove(context->LineBuf + context->LineDone,
+					context->HeaderBuf + context->HeaderDone - context->PixelBytesInHeader,
+					BytesToCopyFromHeaderBuffer);
+
+				context->LineDone += BytesToCopyFromHeaderBuffer;
+                                context->PixelBytesInHeader -= BytesToCopyFromHeaderBuffer;
+                                BytesToCopy -= BytesToCopyFromHeaderBuffer;
+			}
+                        if (BytesToCopy > size)
+                                BytesToCopy = size;
 			if (BytesToCopy > 0) {
 				/* Should be non-NULL once the header is decoded, as below. */
 				g_assert (context->LineBuf != NULL);
