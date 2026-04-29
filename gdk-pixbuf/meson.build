@@ -393,29 +393,31 @@ if native_windows_loaders
   endif
 endif
 
-gdkpixbuf_bin = [
-  [ 'gdk-pixbuf-csource' ],
-  [ 'gdk-pixbuf-pixdata' ],
-  [ 'gdk-pixbuf-query-loaders', [ 'queryloaders.c' ] ],
-]
+if get_option('build-tools')
+  gdkpixbuf_bin = [
+    [ 'gdk-pixbuf-csource' ],
+    [ 'gdk-pixbuf-pixdata' ],
+    [ 'gdk-pixbuf-query-loaders', [ 'queryloaders.c' ] ],
+  ]
 
-foreach bin: gdkpixbuf_bin
-  bin_name = bin[0]
-  bin_source = bin.get(1, bin_name + '.c')
+  foreach bin: gdkpixbuf_bin
+    bin_name = bin[0]
+    bin_source = bin.get(1, bin_name + '.c')
 
-  bin = executable(bin_name, bin_source,
-                   gdkpixbuf_enum_h,
-                   dependencies: gdkpixbuf_dep,
-                   include_directories: [ root_inc, gdk_pixbuf_inc ],
-                   c_args: common_cflags + gdk_pixbuf_cflags,
-                   install: true)
-  meson.override_find_program(bin_name, bin)
+    bin = executable(bin_name, bin_source,
+                     gdkpixbuf_enum_h,
+                     dependencies: gdkpixbuf_dep,
+                     include_directories: [ root_inc, gdk_pixbuf_inc ],
+                     c_args: common_cflags + gdk_pixbuf_cflags,
+                     install: true)
+    meson.override_find_program(bin_name, bin)
 
-  # Used in tests
-  set_variable(bin_name.underscorify(), bin)
-endforeach
+    # Used in tests
+    set_variable(bin_name.underscorify(), bin)
+  endforeach
+endif
 
-if not meson.is_cross_build()
+if get_option('build-tools') and not meson.is_cross_build()
   # The 'loaders.cache' used for testing, so we don't accidentally
   # load the installed cache; we always build it by default
   loaders_cache = custom_target('loaders.cache',
