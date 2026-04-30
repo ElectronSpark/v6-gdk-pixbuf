@@ -669,6 +669,7 @@ gdk_pixbuf_io_init_builtin (void)
         load_one_builtin_module (heic);
         load_one_builtin_module (ico);
         load_one_builtin_module (jpeg);
+        load_one_builtin_module (jpeg2000);
         load_one_builtin_module (jxl);
         load_one_builtin_module (openexr);
         load_one_builtin_module (png);
@@ -745,6 +746,7 @@ module (glycin_gif);
 module (glycin_heic);
 module (glycin_ico);
 module (glycin_jpeg);
+module (glycin_jpeg2000);
 module (glycin_jxl);
 module (glycin_openexr);
 module (glycin_png);
@@ -809,6 +811,7 @@ gdk_pixbuf_load_module_unlocked (GdkPixbufModule *image_module,
         try_module (heic,    glycin_heic);
         try_module (ico,     glycin_ico);
         try_module (jpeg,    glycin_jpeg);
+        try_module (jpeg2000, glycin_jpeg2000);
         try_module (jxl,     glycin_jxl);
         try_module (openexr, glycin_openexr);
         try_module (png,     glycin_png);

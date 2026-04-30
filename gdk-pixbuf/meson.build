@@ -224,6 +224,7 @@ if enabled_loaders.contains('glycin')
     'heic',
     'ico',
     'jpeg',
+    'jpeg2000',
     'jxl',
     'openexr',
     'png',
